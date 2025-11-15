@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    // File Layout
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    // Environment Settings
+    "module": "NodeNext",       // for ESM in Node.js
+    "moduleResolution": "NodeNext",
+    "target": "ES2020",         // esnext is okay too, but ES2020 is stable for Node 18+
+    "lib": ["ESNext"],          // adds latest JS features
+    "types": ["node"],          // enable Node.js type definitions
+
+    // Outputs
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    // Stricter Typechecking
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+
+    // Style & Safety
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // JSX (only needed if React frontend lives here)
+    "jsx": "react-jsx",
+
+    // Misc
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
