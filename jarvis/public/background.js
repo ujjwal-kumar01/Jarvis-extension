@@ -102,3 +102,48 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // keep message channel open for async sendResponse
   return true;
 });
+
+
+async function getBrowserHistory(limit = 200) {
+  return new Promise((resolve) => {
+    chrome.history.search(
+      {
+        text: "",
+        maxResults: limit,
+        startTime: 0,
+      },
+      (results) => {
+        const formatted = results.map(item => ({
+          url: item.url,
+          title: item.title,
+          lastVisit: item.lastVisitTime,
+          visitCount: item.visitCount
+        }));
+        resolve(formatted);
+      }
+    );
+  });
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === "SCAN_BROWSER_HISTORY") {
+    (async () => {
+      try {
+        const historyArray = await getBrowserHistory(200);
+
+        sendResponse({
+          success: true,
+          history: historyArray
+        });
+
+      } catch (err) {
+        sendResponse({
+          success: false,
+          error: err.message
+        });
+      }
+    })();
+
+    return true; // async response
+  }
+});

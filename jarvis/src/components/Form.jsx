@@ -5,7 +5,7 @@ function Form() {
   const [resp, setResp] = useState("");
   const [functionCode, setFunctionCode] = useState("");
   const [category, setCategory] = useState("");
-  const [userData, setUserData] = useState({});
+  const [userData, setUserData] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const execute = async (e) => {
@@ -29,15 +29,41 @@ function Form() {
       const detectedCategory = identifyData.category;
       setCategory(detectedCategory);
 
-      if (detectedCategory=== "scanningBrowser") {
-        
+      // 🟦 Hold the final userdata here
+      let finalUserData = userData;
+
+      if (detectedCategory === "scanningBrowser") {
+        const browserHistoryResponse = await chrome.runtime.sendMessage({
+          type: "SCAN_BROWSER_HISTORY"
+        });
+
+        if (!browserHistoryResponse.success) {
+          setResp("❌ Failed to scan browser history: " + browserHistoryResponse.error);
+          return;
+        }
+
+        finalUserData = browserHistoryResponse.history;
+
+        // keep max 200 entries
+        finalUserData = Array.isArray(finalUserData)
+          ? finalUserData.slice(0, 200)
+          : [];
+
+        setUserData(finalUserData);  // ❗ store array, not string
+
+        console.log("🧾 Browser History:", finalUserData);
       }
 
-      // STEP 2️⃣: Execute the task on server to generate function code
+
+      // STEP 2️⃣: Execute the task using userdata
       const executeRes = await fetch("http://localhost:3000/task/executeTask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task, category: detectedCategory, userData }),
+        body: JSON.stringify({
+          task,
+          category: detectedCategory,
+          userData: finalUserData,        // ✔ Correct value
+        }),
       });
 
       const executeData = await executeRes.json();
@@ -45,63 +71,54 @@ function Form() {
 
       console.log("✅ Execute Result:", executeData);
 
-      // STEP 3️⃣: Clean and extract code
-      let code = executeData.functionCode || "";
-      const output = executeData.output || "";
-
-      code = code
+      // STEP 3️⃣: Extract function code
+      let code = (executeData.functionCode || "")
         .replace(/```(json|javascript|js)?/g, "")
         .replace(/^{\s*"function":\s*"/, "")
         .replace(/"\s*}$/, "")
         .trim();
 
-      // 🚫 Don't use new Function() — violates Chrome CSP
       setFunctionCode(code);
-      setResp(output);
+      setResp(executeData.output || "");
+      setUserData([]) // Clear userData after use
 
-      // STEP 4️⃣: Send code to background to inject into the active tab
-      if (code && typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage) {
+      // STEP 4️⃣: Send code to background
+      if (code && chrome?.runtime?.sendMessage) {
         chrome.runtime.sendMessage(
-          { type: "EXECUTE_TASK", functionCode: code }, // send raw string
+          { type: "EXECUTE_TASK", functionCode: code },
           (bgResponse) => {
             if (chrome.runtime.lastError) {
-              console.warn("chrome.runtime.lastError:", chrome.runtime.lastError.message);
-              setResp((prev) => prev + `\n⚠️ Warning: ${chrome.runtime.lastError.message}`);
+              setResp((prev) => prev + `\n⚠️ ${chrome.runtime.lastError.message}`);
               setLoading(false);
               return;
             }
 
             if (!bgResponse) {
-              console.warn("⚠️ No response from background script");
-              setResp((prev) => prev + "\n⚠️ No response received from background.");
+              setResp((prev) => prev + "\n⚠️ No background response.");
               setLoading(false);
               return;
             }
 
-            console.log("📨 Background response:", bgResponse);
             if (bgResponse.success) {
-              setResp((prev) => prev + `\n✅ ${bgResponse.message || "Executed successfully."}`);
+              setResp((prev) => prev + `\n✅ ${bgResponse.message}`);
             } else {
-              setResp((prev) => prev + `\n❌ Error: ${bgResponse.error || "Unknown error occurred."}`);
+              setResp((prev) => prev + `\n❌ Error: ${bgResponse.error}`);
             }
 
             setLoading(false);
           }
         );
+        
         return;
       }
 
-      // STEP 5️⃣: Fallback (for non-Chrome environments)
+      // STEP 5️⃣: Fallback for non-Chrome environments
       if (code) {
         try {
-          console.warn("chrome.runtime not available — running code in popup context as fallback.");
-          // Only allow safe limited eval in development mode (optional)
-          // eslint-disable-next-line no-new-func
           const fn = new Function("userData", code);
-          await fn(userData);
-          setResp((prev) => prev + "\n🧩 Executed code in popup fallback.");
+          await fn(finalUserData);
+          setResp((prev) => prev + "\n🧩 Executed fallback.");
         } catch (err) {
-          console.error("Fallback execution error:", err);
           setResp((prev) => prev + `\n❌ Fallback execution error: ${err.message}`);
         }
       }
@@ -109,9 +126,7 @@ function Form() {
       console.error("❌ Error:", err);
       setResp("❌ Error: " + (err.message || err));
     } finally {
-      if (!(typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.sendMessage)) {
-        setLoading(false);
-      }
+      if (!chrome?.runtime?.sendMessage) setLoading(false);
     }
   };
 
@@ -125,10 +140,7 @@ function Form() {
           onChange={(e) => setTask(e.target.value)}
           className="border p-2 rounded-md"
         />
-        <button
-          type="submit"
-          className="bg-blue-500 text-white rounded-md p-2 hover:bg-blue-600"
-        >
+        <button className="bg-blue-500 text-white rounded-md p-2 hover:bg-blue-600">
           {loading ? "Processing..." : "Execute"}
         </button>
       </form>
