@@ -5,7 +5,6 @@ function Form() {
   const [resp, setResp] = useState("");
   const [functionCode, setFunctionCode] = useState("");
   const [category, setCategory] = useState("");
-  const [userData, setUserData] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const execute = async (e) => {
@@ -15,7 +14,9 @@ function Form() {
     setFunctionCode("");
 
     try {
-      // STEP 1️⃣: Identify the task
+      /***************************************
+       * STEP 1 — IDENTIFY TASK CATEGORY
+       ***************************************/
       const identifyRes = await fetch("http://localhost:3000/task/identifyTask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -23,110 +24,131 @@ function Form() {
       });
 
       const identifyData = await identifyRes.json();
-      if (!identifyData.success) throw new Error("Failed to identify task");
+      if (!identifyData.success) throw new Error("failed to identify");
 
-      console.log("✅ Identify Result:", identifyData);
       const detectedCategory = identifyData.category;
       setCategory(detectedCategory);
 
-      // 🟦 Hold the final userdata here
-      let finalUserData = userData;
+      let finalUserData = {};
 
+      /***************************************
+       * STEP 2 — PAGE / BROWSER SCAN
+       ***************************************/
+
+      // Scan browser history
       if (detectedCategory === "scanningBrowser") {
-        const browserHistoryResponse = await chrome.runtime.sendMessage({
-          type: "SCAN_BROWSER_HISTORY"
+        const response = await chrome.runtime.sendMessage({
+          type: "SCAN_BROWSER_HISTORY",
         });
 
-        if (!browserHistoryResponse.success) {
-          setResp("❌ Failed to scan browser history: " + browserHistoryResponse.error);
+        if (!response?.success) {
+          setResp("❌ History scan failed: " + response?.error);
+          setLoading(false);
           return;
         }
 
-        finalUserData = browserHistoryResponse.history;
-
-        // keep max 200 entries
-        finalUserData = Array.isArray(finalUserData)
-          ? finalUserData.slice(0, 200)
-          : [];
-
-        setUserData(finalUserData);  // ❗ store array, not string
-
-        console.log("🧾 Browser History:", finalUserData);
+        finalUserData = response.history.slice(0, 300);
       }
 
+      // Scan page (content script returns optimized content)
+      else if (detectedCategory === "scanningPage") {
+        const response = await chrome.runtime.sendMessage({
+          type: "SCAN_PAGE",
+        });
 
-      // STEP 2️⃣: Execute the task using userdata
-      const executeRes = await fetch("http://localhost:3000/task/executeTask", {
+        if (!response?.success) {
+          setResp("❌ Page scan failed: " + response?.error);
+          setLoading(false);
+          return;
+        }
+
+        finalUserData = response.data; // contains title, url, readable text
+      }
+
+      /***************************************
+       * STEP 3 — REQUEST EXECUTABLE CODE
+       ***************************************/
+      const execRes = await fetch("http://localhost:3000/task/executeTask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           task,
           category: detectedCategory,
-          userData: finalUserData,        // ✔ Correct value
+          userData: finalUserData,
         }),
       });
 
-      const executeData = await executeRes.json();
-      if (!executeData.success) throw new Error("Failed to execute task");
+      const execData = await execRes.json();
+      if (!execData.success) throw new Error("execution failed");
 
-      console.log("✅ Execute Result:", executeData);
-
-      // STEP 3️⃣: Extract function code
-      let code = (executeData.functionCode || "")
-        .replace(/```(json|javascript|js)?/g, "")
-        .replace(/^{\s*"function":\s*"/, "")
-        .replace(/"\s*}$/, "")
+      // Remove code block formatting
+      const code = (execData.functionCode || "")
+        .replace(/```(js|javascript|json)?/g, "")
+        .replace(/```/g, "")
         .trim();
 
       setFunctionCode(code);
-      setResp(executeData.output || "");
-      setUserData([]) // Clear userData after use
+      setResp(execData.output || "");
 
-      // STEP 4️⃣: Send code to background
-      if (code && chrome?.runtime?.sendMessage) {
-        chrome.runtime.sendMessage(
-          { type: "EXECUTE_TASK", functionCode: code },
-          (bgResponse) => {
-            if (chrome.runtime.lastError) {
-              setResp((prev) => prev + `\n⚠️ ${chrome.runtime.lastError.message}`);
-              setLoading(false);
-              return;
-            }
+      /***************************************
+       * STEP 4 — SEND INSTRUCTION TO BACKGROUND
+       ***************************************/
+      let messagePayload = null;
 
-            if (!bgResponse) {
-              setResp((prev) => prev + "\n⚠️ No background response.");
-              setLoading(false);
-              return;
-            }
+      switch (detectedCategory) {
+        case "fillInput":
+          messagePayload = {
+            type: "FILL_INPUT",
+            selector: execData.selector,
+            value: execData.value,
+          };
+          break;
 
-            if (bgResponse.success) {
-              setResp((prev) => prev + `\n✅ ${bgResponse.message}`);
-            } else {
-              setResp((prev) => prev + `\n❌ Error: ${bgResponse.error}`);
-            }
+        case "clickButton":
+          messagePayload = {
+            type: "CLICK_BUTTON",
+            selector: execData.selector,
+          };
+          break;
 
-            setLoading(false);
+        case "domAction":
+          messagePayload = {
+            type: "DOM_ACTION",
+            action: execData.action,
+          };
+          break;
+
+        case "scanningPage":
+          // This category uses only the output text — no DOM action needed
+          messagePayload = null;
+          break;
+
+        default:
+          // fallback for ANY general JS execution
+          messagePayload = {
+            type: "EXECUTE_TASK",
+            functionCode: code,
+          };
+      }
+
+      if (messagePayload) {
+        chrome.runtime.sendMessage(messagePayload, (bgResponse) => {
+          if (!bgResponse) {
+            setResp((p) => p + "\n⚠ No background response");
+          } else if (bgResponse.success) {
+            setResp((p) => p + `\n✅ ${bgResponse.message}`);
+          } else {
+            setResp((p) => p + `\n❌ ${bgResponse.error}`);
           }
-        );
-        
-        return;
+          setLoading(false);
+        });
+      } else {
+        setLoading(false);
       }
 
-      // STEP 5️⃣: Fallback for non-Chrome environments
-      if (code) {
-        try {
-          const fn = new Function("userData", code);
-          await fn(finalUserData);
-          setResp((prev) => prev + "\n🧩 Executed fallback.");
-        } catch (err) {
-          setResp((prev) => prev + `\n❌ Fallback execution error: ${err.message}`);
-        }
-      }
     } catch (err) {
-      console.error("❌ Error:", err);
-      setResp("❌ Error: " + (err.message || err));
-    } finally {
-      if (!chrome?.runtime?.sendMessage) setLoading(false);
+      setResp("❌ Error: " + err.message);
+      setLoading(false);
     }
   };
 
@@ -135,27 +157,26 @@ function Form() {
       <form onSubmit={execute} className="flex flex-col gap-2 w-full max-w-md">
         <input
           type="text"
-          placeholder="Enter your task (e.g., open facebook)"
+          placeholder="Enter your task"
           value={task}
           onChange={(e) => setTask(e.target.value)}
           className="border p-2 rounded-md"
         />
-        <button className="bg-blue-500 text-white rounded-md p-2 hover:bg-blue-600">
+
+        <button className="bg-blue-500 text-white p-2 rounded-md">
           {loading ? "Processing..." : "Execute"}
         </button>
       </form>
 
       {resp && (
-        <div className="mt-4 bg-gray-100 p-3 rounded-md w-full max-w-md">
-          <h3 className="font-bold mb-1">Output:</h3>
-          <pre className="whitespace-pre-wrap text-sm">{resp}</pre>
+        <div className="mt-4 bg-gray-100 p-3 rounded-md w-full">
+          <pre className="text-sm whitespace-pre-wrap">{resp}</pre>
         </div>
       )}
 
       {functionCode && (
-        <div className="mt-4 bg-gray-200 p-3 rounded-md w-full max-w-md">
-          <h3 className="font-bold mb-1">Generated Function:</h3>
-          <pre className="whitespace-pre-wrap text-sm">{functionCode}</pre>
+        <div className="mt-4 bg-gray-200 p-3 rounded-md w-full">
+          <pre className="text-sm whitespace-pre-wrap">{functionCode}</pre>
         </div>
       )}
     </div>
