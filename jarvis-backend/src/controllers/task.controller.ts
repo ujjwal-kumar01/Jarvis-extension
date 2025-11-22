@@ -152,255 +152,223 @@ export const executeTask = async (req: Request, res: Response): Promise<void> =>
     const { task, category, userData } = req.body;
     if (!task || !category) throw new ApiError(400, "Task and category required");
 
-    // short context derived from userData (history or page scan)
     const context = userData ? JSON.stringify(userData).slice(0, 3000) : "No context provided.";
-
     let prompt = "";
 
-    // Build category-specific prompt that instructs model to return structured JSON
+    // ------------------------------------------------------------------
+    // CATEGORY-SPECIFIC PROMPTS (ALREADY UPDATED FOR MULTI-SELECTOR)
+    // ------------------------------------------------------------------
     switch (category) {
       case "fillInput":
         prompt = `
 User intent: "${task}"
+Page data: ${context}
+
+Use the page data to match the input fields the user wants to fill.
 
 Return JSON ONLY:
-
 {
-  "selector": "<css selector of input element to fill>",
-  "value": "<string value to type into the input (or empty string)>",
+  "selectors": [
+    {
+      "selector": "<actual css selector from the page>",
+      "value": "<text to type>"
+    }
+  ],
   "output": "<short explanation>"
 }
 
 Rules:
-- If the user specified the exact value, use it.
-- If the input type is obvious (email/password/search), prefer input[type="..."] selectors.
-- Avoid overly generic selectors unless necessary.
-- Do NOT include any extra keys.
+- Do NOT use placeholder selectors like input[type="<type>"].
+- Only use REAL selectors present in page scan: id, name, placeholder, label-based.
+- selectors MUST always be an array.
+- If user gives explicit values → fill ONLY those fields.
+- If user says "fill all" → fill every input with realistic values.
+- If page scan finds multiple similar inputs → use correct nth-of-type.
 `;
         break;
 
       case "clickButton":
         prompt = `
 User intent: "${task}"
+Page data: ${context}
+Use the page data to find the button(s) or link(s) to click.
 
 Return JSON ONLY:
-
 {
-  "selector": "<css selector of the button/link to click>",
+  "selectors": [
+    {
+      "selector": "<button selector>"
+    }
+  ],
   "output": "<short explanation>"
 }
 
 Rules:
-- Prefer button text based selectors or button[type='submit'].
-- If ambiguous, pick a reasonable generic selector like "button" or "a".
+- selectors MUST be an array.
+- Match button by text, role, type, aria-label.
 `;
         break;
 
       case "domAction":
         prompt = `
-User intent: "${task}"
+You are an automation engine that converts user intent into structured DOM actions.
 
-Return JSON ONLY:
+User intent: "${task}"
+Page data: ${context}
+Use the page data to determine the necessary DOM actions.
+
+Return JSON ONLY in this format:
 
 {
-  "action": {
-    "type": "<scroll | extract | select | modify | custom>",
-    "value": <number|string|object|array (depends on action)>
-  },
-  "output": "<short explanation>"
+  "actions": [
+    {
+      "type": "<scroll | extract | select | modify | click | focus>",
+      "selector": "<CSS selector or null>",
+      "value": "<value based on the action type or null>"
+    }
+  ],
+  "output": "<short natural explanation of what you did>"
 }
 
-Examples:
-- Scroll 500px: { "action": { "type": "scroll", "value": 500 }, "output": "Scrolls down 500 pixels" }
-- Extract links: { "action": { "type": "extract", "value": "links" }, "output": "Extracts all hrefs" }
-- Select dropdown: { "action": { "type": "select", "value": { "selector": "select#id", "option": "text or value" } }, "output": "Selects option" }
+### RULES ###
+
+- ALWAYS return an "actions" array, even if it's a single action.
+- Avoid ambiguous selectors — prefer specific, safe CSS selectors.
+- If user’s request requires multiple operations, add multiple actions.
+- "scroll": value = pixels to scroll (positive = down).
+- "extract": selector required; value = null.
+- "select":  
+    • If radio → set checked = true  
+    • If checkbox → checked = true/false  
+    • If dropdown → value must match option value  
+- "modify": change value of input/textarea/select.
+- "click": click a button or link.
+- "focus": focus an element.
+- Output must be valid JSON, no comments, no explanations outside "output" field.
 `;
         break;
 
       case "navigate":
         prompt = `
 User intent: "${task}"
-
-Return JSON ONLY:
-
+Return JSON:
 {
-  "functionCode": "<JS code to navigate, e.g. window.open('https://...') or window.location.href='...'>",
+  "functionCode": "window.location.href='https://...'",
   "output": "<short explanation>"
-}
-
-Rules:
-- If user asked to open a known site, put explicit URL.
-- Only return navigation JS code.
-`;
+}`;
         break;
 
       case "genericJS":
+        
         prompt = `
 User intent: "${task}"
-
-Return JSON ONLY:
-
+Return JSON:
 {
-  "functionCode": "<JavaScript code to execute in page context>",
+  "functionCode": "<JS code>",
   "output": "<short explanation>"
-}
-
-Rules:
-- Code must use DOM APIs if needed and be runnable via eval.
-- Do NOT include chrome.* APIs.
-- Avoid async unless necessary.
-`;
+}`;
         break;
 
       case "scanningPage":
-        // For scanningPage we expect the page-scan to have been provided client-side as userData,
-        // but keep a variant where model can also provide JS to extract more if necessary.
         prompt = `
-User wants to analyze the current webpage and then do the Task: "${task}"
-if it says answer the question you see what question is there and then answer it.
+User wants to analyze current page.
+Page data: ${context}
+User intent: "${task}"
+do the analysis and provide based on that.
 
-You are provided the page data (if available) as context:
-${context}
 
-Return JSON ONLY. Choose one of the two response shapes:
-
-A) If analysis only then do what task requests based on page content:
+Return JSON ONLY:
+A)
 {
   "functionCode": null,
-  "output": "<answer based on task and page content>"
+  "output": "<final answer>"
 }
 
-B) If a JS function is useful for deeper extraction in page context:
+OR
+
+B)
 {
-  "functionCode": "<pure JS (DOM APIs) to run in page context>",
-  "output": "<short explanation>"
-}
-
-Rules:
-- If returning functionCode, it MUST be a DOM-only JS string (no chrome APIs, no backticks).
-- Output should be a clear human-readable summary or explanation.
-`;
+  "functionCode": "<DOM only JS>",
+  "output": "<what it does>"
+}`;
         break;
 
       case "scanningBrowser":
         prompt = `
-User wants a browser-level analysis: "${task}"
+Use ONLY provided browser data: ${context}
+User intent: "${task}"
 
-You are given userData (history/tabs) as context:
-${context}
 
-Return JSON ONLY.
-
-If the task is informational (analysis/filtering) return:
+Return:
 {
-  "functionCode": null,
-  "output": "<analysis strictly derived from provided userData>"
-}
-
-If the task requires an action (e.g., "open last visited site") return:
-{
-  "functionCode": "<JS that performs the action (e.g., window.open('...'))>",
-  "output": "<short explanation>"
-}
-
-RULES:
-- DO NOT invent URLs or timestamps.
-- USE ONLY the provided userData for analysis.
-- Do NOT call any chrome.* APIs in returned functionCode.
-`;
+  "functionCode": null or "<JS>",
+  "output": "<analysis>"
+}`;
         break;
 
       case "textOnly":
         prompt = `
-User asked: "${task}"
-
-Return JSON ONLY:
-
+        User intent: "${task}"
+Return:
 {
   "functionCode": null,
-  "output": "<plain text answer>"
-}
-`;
-        break;
-
-      case "notDoable":
-        prompt = `
-User asked: "${task}"
-
-Return JSON ONLY:
-
-{
-  "functionCode": null,
-  "output": "<brief explanation why it's not doable or safe>"
-}
-`;
+  "output": "<answer>"
+}`;
         break;
 
       default:
-        // Fallback: try to produce a generic JS or explanation
         prompt = `
-User asked: "${task}"
-
-Return JSON ONLY. Preferred keys:
-- functionCode (string) OR selector/value/action depending on task,
-- output (string).
-
-Example:
-{ "functionCode": "document.body.style.background='red'", "output": "Changes background to red" }
-`;
-        break;
+User intent: "${task}"
+Return JSON:
+{
+  "functionCode": null,
+  "output": "Not doable"
+}`;
     }
 
-    // Call the LLM
+    // ------------------------------------------------------------------
+    // CALL GEMINI SAFELY
+    // ------------------------------------------------------------------
     const response = await safeGenerate(prompt);
     const raw = cleanText(response);
 
-    // Try to parse JSON robustly; if parsing fails, attempt to salvage useful info
-    let parsed: any = null;
+    let parsed: any = {};
     try {
       parsed = JSON.parse(raw);
     } catch {
-      // Fallback: try to extract keys using regex
-      parsed = { functionCode: null, selector: undefined, value: undefined, action: undefined, output: raw };
-      try {
-        const selMatch = raw.match(/"selector"\s*:\s*"([^"]+)"/);
-        if (selMatch) parsed.selector = selMatch[1];
-        const valueMatch = raw.match(/"value"\s*:\s*"([^"]+)"/);
-        if (valueMatch) parsed.value = valueMatch[1];
-        const actionMatch = raw.match(/"action"\s*:\s*({[\s\S]*})/);
-        if (actionMatch) {
-          const actionStr = actionMatch[1];
-          if (typeof actionStr === "string" && actionStr.length > 0) {
-            try {
-              parsed.action = JSON.parse(actionStr);
-            } catch {
-              parsed.action = actionStr;
-            }
-          } else {
-            parsed.action = actionStr;
-          }
-        }
-      } catch (e) {
-        // ignore salvage errors
-      }
+      parsed = { output: raw };
     }
 
-    // Normalize returned shape
+    // ------------------------------------------------------------------
+    // NORMALIZE FINAL RESULT (VERY IMPORTANT)
+    // ------------------------------------------------------------------
     const result = {
       category,
-      selector: parsed.selector,
-      value: parsed.value,
-      action: parsed.action,
-      functionCode: parsed.functionCode || parsed.function || parsed?.functionCode || null,
-      output: parsed.output || parsed?.text || parsed?.explanation || (typeof parsed === "string" ? parsed : null),
+
+      // Always arrays
+      selectors: Array.isArray(parsed.selectors) ? parsed.selectors : [],
+      actions: Array.isArray(parsed.actions) ? parsed.actions : [],
+
+      // Navigation / JS execution
+      functionCode:
+        parsed.functionCode ||
+        parsed.function ||
+        null,
+
+      output:
+        parsed.output ||
+        parsed.explanation ||
+        parsed.text ||
+        null,
     };
 
-    console.log("✅ executeTask parsed result:", result);
+    console.log("✅ Normalized executeTask result:", result);
 
     res.status(200).json({
       success: true,
       ...result,
     });
+
   } catch (error: any) {
     console.error("executeTask error:", error);
     res.status(500).json({

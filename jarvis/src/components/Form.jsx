@@ -14,9 +14,9 @@ function Form() {
     setFunctionCode("");
 
     try {
-      /***************************************
+      /****************************************
        * STEP 1 — IDENTIFY TASK CATEGORY
-       ***************************************/
+       ****************************************/
       const identifyRes = await fetch("http://localhost:3000/task/identifyTask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -24,18 +24,17 @@ function Form() {
       });
 
       const identifyData = await identifyRes.json();
-      if (!identifyData.success) throw new Error("failed to identify");
+      if (!identifyData.success) throw new Error("Failed to identify category");
 
       const detectedCategory = identifyData.category;
       setCategory(detectedCategory);
 
       let finalUserData = {};
 
-      /***************************************
+      /****************************************
        * STEP 2 — PAGE / BROWSER SCAN
-       ***************************************/
+       ****************************************/
 
-      // Scan browser history
       if (detectedCategory === "scanningBrowser") {
         const response = await chrome.runtime.sendMessage({
           type: "SCAN_BROWSER_HISTORY",
@@ -50,8 +49,12 @@ function Form() {
         finalUserData = response.history.slice(0, 300);
       }
 
-      // Scan page (content script returns optimized content)
-      else if (detectedCategory === "scanningPage") {
+      else if (
+        detectedCategory === "scanningPage" ||
+        detectedCategory === "fillInput" ||
+        detectedCategory === "clickButton" ||
+        detectedCategory === "domAction"
+      ) {
         const response = await chrome.runtime.sendMessage({
           type: "SCAN_PAGE",
         });
@@ -62,12 +65,12 @@ function Form() {
           return;
         }
 
-        finalUserData = response.data; // contains title, url, readable text
+        finalUserData = response.data;
       }
 
-      /***************************************
+      /****************************************
        * STEP 3 — REQUEST EXECUTABLE CODE
-       ***************************************/
+       ****************************************/
       const execRes = await fetch("http://localhost:3000/task/executeTask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -79,9 +82,9 @@ function Form() {
       });
 
       const execData = await execRes.json();
-      if (!execData.success) throw new Error("execution failed");
+      if (!execData.success) throw new Error("Execution failed");
 
-      // Remove code block formatting
+      // Clean up JS code formatting
       const code = (execData.functionCode || "")
         .replace(/```(js|javascript|json)?/g, "")
         .replace(/```/g, "")
@@ -90,41 +93,47 @@ function Form() {
       setFunctionCode(code);
       setResp(execData.output || "");
 
-      /***************************************
+      /****************************************
        * STEP 4 — SEND INSTRUCTION TO BACKGROUND
-       ***************************************/
+       ****************************************/
       let messagePayload = null;
 
       switch (detectedCategory) {
         case "fillInput":
           messagePayload = {
             type: "FILL_INPUT",
-            selector: execData.selector,
-            value: execData.value,
+            selectors: execData.selectors.map((item) => ({
+              selector: item.selector,
+              value: item.value,
+            })),
           };
           break;
 
         case "clickButton":
           messagePayload = {
             type: "CLICK_BUTTON",
-            selector: execData.selector,
+            selectors: execData.selectors.map((s) => ({
+              selector: typeof s === "string" ? s : s.selector,
+            })),
           };
           break;
 
         case "domAction":
           messagePayload = {
             type: "DOM_ACTION",
-            action: execData.action,
+            actions: execData.actions.map((a) => ({
+              type: a.type,
+              selector: a.selector || null,
+              value: a.value || null,
+            })),
           };
           break;
 
         case "scanningPage":
-          // This category uses only the output text — no DOM action needed
           messagePayload = null;
           break;
 
         default:
-          // fallback for ANY general JS execution
           messagePayload = {
             type: "EXECUTE_TASK",
             functionCode: code,
@@ -132,16 +141,25 @@ function Form() {
       }
 
       if (messagePayload) {
-        chrome.runtime.sendMessage(messagePayload, (bgResponse) => {
+        const res = chrome.runtime.sendMessage(messagePayload, (bgResponse) => {
           if (!bgResponse) {
-            setResp((p) => p + "\n⚠ No background response");
+            setResp((p) => p + "\n⚠ No background response.");
           } else if (bgResponse.success) {
-            setResp((p) => p + `\n✅ ${bgResponse.message}`);
+            const first = bgResponse.results?.[0];
+            const url = first?.url || null;
+
+            setResp((p) =>
+              p +
+              `\n✅ Extraction Complete\n` +
+              (url ? `Image URL: ${url}` : "⚠ No URL found")
+            );
+
           } else {
             setResp((p) => p + `\n❌ ${bgResponse.error}`);
           }
           setLoading(false);
         });
+
       } else {
         setLoading(false);
       }
