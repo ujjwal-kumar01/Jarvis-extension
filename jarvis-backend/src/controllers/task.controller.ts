@@ -297,6 +297,7 @@ B)
         prompt = `
 Use ONLY provided browser data: ${context}
 User intent: "${task}"
+answer the user request based on the data provided with analysis being already done .
 
 
 Return:
