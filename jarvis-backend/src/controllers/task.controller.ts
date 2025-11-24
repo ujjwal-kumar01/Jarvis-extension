@@ -164,7 +164,7 @@ export const executeTask = async (req: Request, res: Response): Promise<void> =>
 User intent: "${task}"
 Page data: ${context}
 
-Use the page data to match the input fields the user wants to fill.
+Use the page data to match the input fields the user wants to fill and to generate selectors.
 
 Return JSON ONLY:
 {
@@ -215,7 +215,7 @@ You are an automation engine that converts user intent into structured DOM actio
 
 User intent: "${task}"
 Page data: ${context}
-Use the page data to determine the necessary DOM actions.
+Use the page data to determine the necessary DOM actions and selectors.
 
 Return JSON ONLY in this format:
 

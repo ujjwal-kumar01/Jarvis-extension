@@ -2,18 +2,25 @@
   "manifest_version": 3,
   "name": "Jarvis AI Assistant",
   "version": "1.0",
-  "description": "An AI-powered Chrome Assistant that can perform tasks like opening sites, downloading files, and automating actions.",
+  "description": "An AI-powered Chrome Assistant that can perform tasks on any webpage.",
+  
   "permissions": [
     "activeTab",
     "scripting",
     "tabs",
     "downloads",
     "storage",
-    "history"
+    "history",
+    "sidePanel"
   ],
+
+  "host_permissions": ["<all_urls>"],
+
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
+
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
@@ -21,17 +28,21 @@
       "run_at": "document_idle"
     }
   ],
+
+  "side_panel": {
+    "default_path": "index.html"
+  },
+
   "action": {
-    "default_popup": "index.html",
     "default_title": "Jarvis Assistant",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon32.png"
     }
   },
+
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon32.png"
-  },
-  "host_permissions": ["<all_urls>"]
+  }
 }
