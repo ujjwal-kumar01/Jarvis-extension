@@ -1,89 +1,104 @@
 import mongoose, { Document, Model } from "mongoose";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 // Interface for User document
 export interface IUser extends Document {
-  username: string;
+  username?: string;
   email: string;
-  password?: string; // ✅ optional now
-  authProvider: "local" | "google"; // ✅ added
-  oauthId?: string; // ✅ store Google sub/id
-  isVerified: boolean;
-  isPaid: boolean;
-  lastPaid?: Date;
-  planOpted?: string;
-  credits: number;
+  password?: string;
+  googleId?: string;
+  isEmailVerified: boolean;
   avatar?: string;
-  verifyCode?: string;
-  verifyCodeExpiry?: Date;
-  isPasswordCorrect(password: string): Promise<boolean>;
+  verification?: {
+    code: string;
+    expiresAt: Date;
+    purpose: 'email_verification' | 'password_reset';
+  };
+  subscription?: {
+    plan: 'free' | 'monthly' | 'yearly';
+    status: 'trial' | 'active' | 'expired' | 'cancelled';
+    trialEndsAt: Date;
+    currentPeriodEndsAt?: Date;
+  };
+  gemini?: {
+    apiKeyEncrypted?: string;
+    isProvidedByUser: boolean;
+  };
+  refreshToken?: string;
 }
 
 // Interface for User model
-export interface IUserModel extends Model<IUser> {}
+export interface IUserModel extends Model<IUser> { }
 
 const userSchema = new mongoose.Schema<IUser>(
   {
     username: {
       type: String,
-      required: true,
     },
+
     email: {
       type: String,
       required: true,
       unique: true,
-      match: [/.+\@.+\..+/, "Please use a valid email address"],
+      index: true,
     },
-    password: {
+
+    password: String,
+
+    googleId: {
       type: String,
-      required: false, // ✅ optional
-      default: null,
+      sparse: true,
     },
-    authProvider: {
-      type: String,
-      enum: ["local", "google"],
-      default: "local",
-    },
-    oauthId: {
-      type: String,
-      default: null,
-    },
-    isVerified: {
+
+    isEmailVerified: {
       type: Boolean,
       default: false,
     },
-    isPaid: {
-      type: Boolean,
-      default: false,
+
+    avatar: String,
+
+    verification: {
+      code: String,
+      expiresAt: Date,
+      purpose: {
+        type: String,
+        enum: ["email_verification", "password_reset"],
+      },
     },
-    lastPaid: {
-      type: Date,
-      default: null,
+
+    subscription: {
+      plan: {
+        type: String,
+        enum: ["free", "monthly", "yearly"],
+        default: "free",
+      },
+      status: {
+        type: String,
+        enum: ["trial", "active", "expired", "cancelled"],
+        default: "trial",
+      },
+      trialEndsAt: {
+        type: Date,
+        default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+      currentPeriodEndsAt: Date,
     },
-    planOpted: {
+
+    gemini: {
+      apiKeyEncrypted: String,
+      isProvidedByUser: {
+        type: Boolean,
+        default: false,
+      },
+    },
+    refreshToken: {
       type: String,
-      enum: ["free", "premium"],
-      default: "free",
-    },
-    credits: {
-      type: Number,
-      default: 0,
-    },
-    avatar: {
-      type: String,
-    },
-    verifyCode: {
-      type: String,
-      default: null,
-    },
-    verifyCodeExpiry: {
-      type: Date,
-      default: null,
-    },
+      default: null
+    }
+
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 // Hash password only if present
@@ -101,7 +116,32 @@ userSchema.methods.isPasswordCorrect = async function (
   return await bcrypt.compare(password, this.password);
 };
 
+userSchema.methods.generateAccessToken = function () {
+  return jwt.sign(
+    {
+      _id: this._id,
+      email: this.email,
+      username: this.username,
+    },
+    process.env.ACCESS_TOKEN_SECRET,
+    {
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY
+    }
+  )
+}
+userSchema.methods.generateRefreshToken = function () {
+  return jwt.sign(
+    {
+      _id: this._id,
+
+    },
+    process.env.REFRESH_TOKEN_SECRET,
+    {
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+    }
+  )
+}
+
+
 const User: IUserModel = mongoose.model<IUser, IUserModel>("User", userSchema);
 export default User;
-
-

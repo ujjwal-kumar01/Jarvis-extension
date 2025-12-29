@@ -15,23 +15,5 @@ export const signUp = async (req: Request, res: Response): Promise<void> => {
         throw new ApiError(409, "User with this email already exists");
     }
 
-    // Create new user
-    const user = await User.create({
-        username: fullName, // Map fullName to username as per the model
-        email,
-        password,
-        verifyCode: Math.floor(100000 + Math.random() * 900000).toString(),
-        verifyCodeExpiry: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
-    });
-
-    res.status(201).json({
-        success: true,
-        message: "User registered successfully",
-        data: {
-            id: user._id,
-            username: user.username,
-            email: user.email,
-            isVerified: user.isVerified
-        }
-    });
+    
 };
