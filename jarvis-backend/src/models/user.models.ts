@@ -2,39 +2,56 @@ import mongoose, { Document, Model } from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-// Interface for User document
+/* =======================
+   INTERFACES
+======================= */
+
 export interface IUser extends Document {
-  username?: string;
+  username: string;
   email: string;
   password?: string;
   googleId?: string;
   isEmailVerified: boolean;
   avatar?: string;
+
   verification?: {
     code: string;
     expiresAt: Date;
-    purpose: 'email_verification' | 'password_reset';
+    purpose: "email_verification" | "password_reset";
   };
+
   subscription?: {
-    plan: 'free' | 'monthly' | 'yearly';
-    status: 'trial' | 'active' | 'expired' | 'cancelled';
+    plan: "free" | "monthly" | "yearly";
+    status: "trial" | "active" | "expired" | "cancelled";
     trialEndsAt: Date;
     currentPeriodEndsAt?: Date;
   };
+
   gemini?: {
     apiKeyEncrypted?: string;
     isProvidedByUser: boolean;
   };
+
   refreshToken?: string;
+
+  // Methods
+  isPasswordCorrect(password: string): Promise<boolean>;
+  generateAccessToken(): string;
+  generateRefreshToken(): string;
 }
 
-// Interface for User model
-export interface IUserModel extends Model<IUser> { }
+export interface IUserModel extends Model<IUser> {}
+
+/* =======================
+   SCHEMA
+======================= */
 
 const userSchema = new mongoose.Schema<IUser>(
   {
     username: {
       type: String,
+      required: true,
+      trim: true,
     },
 
     email: {
@@ -42,9 +59,12 @@ const userSchema = new mongoose.Schema<IUser>(
       required: true,
       unique: true,
       index: true,
+      lowercase: true,
     },
 
-    password: String,
+    password: {
+      type: String,
+    },
 
     googleId: {
       type: String,
@@ -92,31 +112,43 @@ const userSchema = new mongoose.Schema<IUser>(
         default: false,
       },
     },
+
     refreshToken: {
       type: String,
-      default: null
-    }
-
+      default: null,
+    },
   },
   { timestamps: true }
 );
 
-// Hash password only if present
+/* =======================
+   MIDDLEWARES
+======================= */
+
+// Hash password before save
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password") || !this.password) return next();
+
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
 
-// Instance method
+/* =======================
+   METHODS
+======================= */
+
 userSchema.methods.isPasswordCorrect = async function (
   password: string
 ): Promise<boolean> {
-  if (!this.password) return false; // prevent checking null
-  return await bcrypt.compare(password, this.password);
+  if (!this.password) return false;
+  return bcrypt.compare(password, this.password);
 };
 
-userSchema.methods.generateAccessToken = function () {
+userSchema.methods.generateAccessToken = function (): string {
+  if (!process.env.ACCESS_TOKEN_SECRET) {
+    throw new Error("ACCESS_TOKEN_SECRET is not defined");
+  }
+
   return jwt.sign(
     {
       _id: this._id,
@@ -125,23 +157,34 @@ userSchema.methods.generateAccessToken = function () {
     },
     process.env.ACCESS_TOKEN_SECRET,
     {
-      expiresIn: process.env.ACCESS_TOKEN_EXPIRY
+      expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "15m",
     }
-  )
-}
-userSchema.methods.generateRefreshToken = function () {
+  );
+};
+
+userSchema.methods.generateRefreshToken = function (): string {
+  if (!process.env.REFRESH_TOKEN_SECRET) {
+    throw new Error("REFRESH_TOKEN_SECRET is not defined");
+  }
+
   return jwt.sign(
     {
       _id: this._id,
-
     },
     process.env.REFRESH_TOKEN_SECRET,
     {
-      expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "7d",
     }
-  )
-}
+  );
+};
 
+/* =======================
+   MODEL
+======================= */
 
-const User: IUserModel = mongoose.model<IUser, IUserModel>("User", userSchema);
+const User: IUserModel = mongoose.model<IUser, IUserModel>(
+  "User",
+  userSchema
+);
+
 export default User;
