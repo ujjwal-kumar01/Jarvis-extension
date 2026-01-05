@@ -53,7 +53,7 @@ export const signUp = async (req: Request, res: Response): Promise<void> => {
             if (!existingUser.isEmailVerified) {
                 throw new ApiError(
                     409,
-                    "User exists but email is not verified. Please verify your email."
+                    "User exists but email is not verified. Please verify your email after log in."
                 );
             }
 
@@ -107,7 +107,7 @@ export const signUp = async (req: Request, res: Response): Promise<void> => {
                 username,
                 verifyCode
             );
-
+            console.log("send email response:", emailResponse);
             if (!emailResponse?.success) {
                 throw new Error("Email service failed");
             }

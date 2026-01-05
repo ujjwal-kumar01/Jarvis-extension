@@ -16,7 +16,7 @@ router.route('/').get((_req: Request, res: Response) => {
     res.send('User route');
 });
 
-router.post('/register', upload.single('avatar'), signUp);
+router.post('/signup', upload.single('avatar'), signUp);
 router.route("/login").post(login)
 router.route("/logout").post(verifyJWT,logout)
 router.post("/verifyEmail",verifyJWT ,verifyEmail)

@@ -25,6 +25,10 @@ export const verifyJWT = async(req:Request, res: Response, next:NextFunction) =>
         }
         
         const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
+
+        if (typeof decodedToken === "string" || !decodedToken?._id) {
+            throw new ApiError(401, "Invalid Access Token")
+        }
     
         const user = await User.findById(decodedToken?._id).select("-password -refreshToken")
     
@@ -38,5 +42,4 @@ export const verifyJWT = async(req:Request, res: Response, next:NextFunction) =>
     } catch (error) {
         throw new ApiError(401, (error as Error)?.message || "Invalid access token")
     }
-    
 }

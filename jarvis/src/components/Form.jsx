@@ -31,7 +31,7 @@ function Form() {
        ****************************************/
       appendLog("🔍 Identifying task category...");
 
-      const identifyRes = await fetch("http://localhost:3000/task/identifyTask", {
+      const identifyRes = await fetch("http://localhost:8000/task/identifyTask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ task }),
@@ -85,7 +85,7 @@ function Form() {
        ****************************************/
       appendLog("⚙ Requesting executable instructions...");
 
-      const execRes = await fetch("http://localhost:3000/task/executeTask", {
+      const execRes = await fetch("http://localhost:8000/task/executeTask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
