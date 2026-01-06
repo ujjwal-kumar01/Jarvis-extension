@@ -18,8 +18,11 @@ import { signInSchema } from '@/schemas/signInSchema';
 import axios from 'axios';
 import { useState, useEffect } from 'react';
 import { toast } from "sonner"
-import { Loader2 } from 'lucide-react';
+import { Loader2, SeparatorHorizontal } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { GoogleLogin } from '@react-oauth/google';
+import { Separator } from "@/components/ui/separator"
+
 
 export default function SignInForm() {
   // const searchParams = useSearchParams();
@@ -69,6 +72,31 @@ export default function SignInForm() {
       toast.error(message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+  
+   const handleGoogleLogin = async (credential: string) => {
+    try {
+      const response = await axios.post('/backend/user/google-login', {
+        credential, // 🔥 THIS is the ID token
+      });
+
+      toast.success("User logged in successfully", {
+        description: "Enjoy using Jarvis",
+      });
+
+      router.replace('/dashboard/info');
+    } catch (error) {
+      let message = "Something went wrong";
+
+      if (axios.isAxiosError(error)) {
+        message =
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          "Google login failed";
+      }
+
+      toast.error(message);
     }
   };
 
@@ -142,7 +170,28 @@ export default function SignInForm() {
               </form>
             </Form>
 
-            <p className="text-xs text-zinc-400 mt-5 text-center">
+            <Separator className="my-6 bg-zinc-700" />
+
+            <div className="mt-4 flex justify-center">
+              <GoogleLogin
+                onSuccess={(response) => {
+                  if (!response.credential) {
+                    toast.error("Google login failed");
+                    return;
+                  }
+                  handleGoogleLogin(response.credential);
+                }}
+                onError={() => {
+                  toast.error("Google login failed");
+                }}
+                theme="filled_black"
+                shape="pill"
+                size="medium"
+                width="200"
+              />
+            </div>
+
+            <p className="text-xs text-zinc-400 mt-2.5 text-center">
               Don&apos;t have an account?{' '}
               <Link href="/sign-up" className="text-white underline">
                 Sign up

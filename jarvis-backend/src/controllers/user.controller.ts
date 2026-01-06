@@ -5,6 +5,9 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { sendVerificationEmail } from "../utils/sendVerificationEmail.js";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+// import oauth2Client from "../utils/googleAuth.js";
+import axios from "axios";
+import { client } from "../utils/googleAuth.js";
 
 export const generateAccessAndRefreshTokens = async (
     userId: mongoose.Types.ObjectId
@@ -328,3 +331,134 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
     }
 }
 
+
+// export const googleLogin = async (req: Request, res: Response): Promise<void> => {
+//   try {
+//     const { code } = req.body;
+//     if (!code) {
+//       throw new ApiError(400, "Authorization code is required");
+//     }
+//     console.log("Google authorization code:", code);
+    
+//     let googleResponse;
+//     try {
+//         googleResponse = await oauth2Client.getToken(code);        
+//     } catch (error) {
+//         console.error("Error exchanging code for tokens:", error);
+//         throw new ApiError(401, "Failed to exchange code for tokens");
+//     }
+    
+//     if (!googleResponse.tokens.access_token) {
+//         console.error("Failed to obtain access token from Google:", googleResponse);
+//       throw new ApiError(401, "Failed to obtain access token from Google");
+//     }
+
+//     console.log("Google access token:", googleResponse.tokens.access_token);
+
+//     oauth2Client.setCredentials(googleResponse.tokens);
+//     console.log("OAuth2 client credentials set.");
+
+//     const googleUser = await axios
+//       .get('https://openidconnect.googleapis.com/v1/userinfo', {
+//         headers: {
+//           Authorization: `Bearer ${googleResponse.tokens.access_token}`,
+//         },
+//       })
+//       .then(res => res.data);
+
+//       console.log("Google user info:", googleUser);
+
+//     let user = await User.findOne({ email: googleUser.email });
+
+//     if (!user) {
+//       user = new User({
+//         username: googleUser.name,
+//         email: googleUser.email,
+//         avatar: googleUser.picture,
+//         isEmailVerified: true,
+//       });
+//       await user.save();
+//     }
+
+//     const { accessToken, refreshToken } =
+//       await generateAccessAndRefreshTokens(user._id as mongoose.Types.ObjectId);
+
+//     const loggedInUser = await User.findById(user._id)
+//       .select("-password -refreshToken");
+
+//     const options = {
+//       httpOnly: true,
+//       secure: process.env.NODE_ENV === 'production',
+//       sameSite: 'lax' as const,
+//     };
+
+//     res
+//       .status(200)
+//       .cookie("accessToken", accessToken, options)
+//       .cookie("refreshToken", refreshToken, options)
+//       .json({
+//         success: true,
+//         message: "Google login successful",
+//         user: loggedInUser,
+//       });
+
+//   } catch (error: any) {
+//     throw new ApiError(
+//       error.statusCode || 500,
+//       error.message || "Google login failed"
+//     );
+//   }
+// };
+
+
+export const googleLogin = async (req: Request, res: Response) => {
+  try {
+    const { credential } = req.body;
+
+    if (!credential) {
+      throw new ApiError(400, "Google credential is required");
+    }
+
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      throw new ApiError(500, "Google Client ID is not configured");
+    }
+
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    if (!payload?.email) {
+      throw new ApiError(400, "Invalid Google token");
+    }
+
+    let user = await User.findOne({ email: payload.email });
+
+    if (!user) {
+      user = await User.create({
+        username: payload.name,
+        email: payload.email,
+        avatar: payload.picture,
+        isEmailVerified: payload.email_verified,
+      });
+    }
+
+    const { accessToken, refreshToken } =
+      await generateAccessAndRefreshTokens(user._id as mongoose.Types.ObjectId);
+
+    res
+      .status(200)
+      .cookie("accessToken", accessToken, { httpOnly: true })
+      .cookie("refreshToken", refreshToken, { httpOnly: true })
+      .json({
+        success: true,
+        message: "Google login successful",
+        user,
+      });
+
+  } catch (err: any) {
+    throw new ApiError(401, err.message || "Google login failed");
+  }
+};

@@ -9,6 +9,8 @@ import {
 } from '../controllers/user.controller.js';
 import { verifyJWT } from '../middlewares/auth.middlewares.js';
 import {upload } from '../middlewares/multer.middlewares.js';
+import Google from '@auth/express/providers/google';
+import { googleLogin } from '../controllers/user.controller.js';
 
 const router = Router();
 
@@ -21,5 +23,6 @@ router.route("/login").post(login)
 router.route("/logout").post(verifyJWT,logout)
 router.post("/verifyEmail",verifyJWT ,verifyEmail)
 router.post("/resendVerificationCode",verifyJWT ,resendVerificationCode)
+router.post("/google-login", googleLogin)
 
 export default router;

@@ -8,7 +8,7 @@ const sidebarOptions = [
   { name: "Info", href: "/dashboard/info" },
   { name: "Update", href: "/dashboard/update_info" },
   { name: "Update Gemini API", href: "/dashboard/update_gemini_api" },
-  { name: "Verify Account", href: "/verify" },
+  { name: "Verify Account", href: "/dashboard/verify" },
   { name: "Change Plan", href: "/dashboard/change_plan" },
 ];
 

@@ -9,6 +9,9 @@ dotenv.config();
 // ----------------------------------------------------
 // Initialize Gemini Client
 // ----------------------------------------------------
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is not set in environment variables.");
+}
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });

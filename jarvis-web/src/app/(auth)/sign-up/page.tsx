@@ -20,6 +20,8 @@ import axios from 'axios';
 import { toast } from "sonner"
 import type { AxiosError } from "axios";
 import { Loader2 } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
+import { Separator } from "@/components/ui/separator"
 
 
 export default function SignUpForm() {
@@ -60,6 +62,31 @@ export default function SignUpForm() {
     }
 
     console.log(data);
+  };
+
+  const handleGoogleLogin = async (credential: string) => {
+    try {
+      const response = await axios.post('/backend/user/google-login', {
+        credential, // 🔥 THIS is the ID token
+      });
+
+      toast.success("User logged in successfully", {
+        description: "Enjoy using Jarvis",
+      });
+
+      router.replace('/dashboard/info');
+    } catch (error) {
+      let message = "Something went wrong";
+
+      if (axios.isAxiosError(error)) {
+        message =
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          "Google login failed";
+      }
+
+      toast.error(message);
+    }
   };
 
   return (
@@ -141,18 +168,39 @@ export default function SignUpForm() {
                   className="w-full h-10 bg-white text-black hover:bg-zinc-200"
                   disabled={isSubmitting}
                 >{isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Please wait
-                </>
-              ) : (
-                'Sign Up'
-              )}
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Please wait
+                  </>
+                ) : (
+                  'Sign Up'
+                )}
                 </Button>
               </form>
             </Form>
 
-            <p className="text-xs text-zinc-400 mt-5 text-center">
+            <Separator className="my-4.5 bg-zinc-700" />
+
+            <div className=" flex justify-center">
+              <GoogleLogin
+                onSuccess={(response) => {
+                  if (!response.credential) {
+                    toast.error("Google login failed");
+                    return;
+                  }
+                  handleGoogleLogin(response.credential);
+                }}
+                onError={() => {
+                  toast.error("Google login failed");
+                }}
+                theme="filled_black"
+                shape="pill"
+                size="medium"
+                width="200"
+              />
+            </div>
+
+            <p className="text-xs text-zinc-400 mt-2.5 text-center">
               Already have an account?{' '}
               <Link href="/sign-in" className="text-white underline">
                 Log in
