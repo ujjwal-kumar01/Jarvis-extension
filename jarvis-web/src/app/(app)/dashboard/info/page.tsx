@@ -1,13 +1,14 @@
 'use client'
 
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef , useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
+import axios from 'axios'
 
 function Info() {
   // const searchParams = useSearchParams()
   // const reason = searchParams.get("reason")
-  const router = useRouter()
+  // const router = useRouter()
 
   // ensure toast only shows once in React 18 Strict Mode
   // const toastShown = useRef(false)
@@ -27,28 +28,119 @@ function Info() {
   //   }
   // }, [reason, router])
 
-  const logout = async () => {
-    try {
-      const response = await fetch('/backend/user/logout', {
-        method: 'POST',
-        credentials: 'include',
-      })
-      if (response.ok) {
-        console.log('User logged out successfully')
-      } 
-    } catch (error) {
-      console.error('Error logging out:', error)
-    } finally {
-      router.replace('/sign-in')
+  const [user, setUser] = useState({});
+    const router = useRouter();
+    const userInfo = async () => {
+        try {
+            const response = await axios.get("/backend/user/getProfile", {
+                withCredentials: true,
+            })
+
+            setUser(response.data.user);
+        } catch (error) {
+            console.error('Error fetching user info:', error)
+        }
     }
-  }
+
+    useEffect(() => {
+        userInfo()
+    }, []);
+
+  
 
   return (
-    <div className='text-white'>
-      <button onClick={logout}>Logout</button>
-      <div className='text-white'>info</div>
+  <div className="min-h-screen text-white">
+
+    {/* Page Title */}
+    <h1 className="mb-6 text-2xl font-semibold tracking-wider text-gray-600">
+      Account Information
+    </h1>
+
+    {/* Profile Card */}
+    <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-xl">
+
+      {/* Header */}
+      <div className="flex items-center gap-6 border-b border-white/10 px-6 py-4">
+        <img
+          src={user?.avatar || "/default-avatar.png"}
+          alt="Avatar"
+          className="h-20 w-20 rounded-full border border-cyan-400/40 object-cover"
+        />
+
+        <div>
+          <p className="text-lg font-medium text-cyan-200">
+            @{user?.username}
+          </p>
+          <p className="text-sm text-white/60">
+            {user?.email}
+          </p>
+        </div>
+      </div>
+
+      {/* Info Sections */}
+      <div className="grid gap-6 px-6 py-4 md:grid-cols-2">
+
+        {/* Email Verification */}
+        <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+          <p className="text-xs uppercase tracking-wider text-white/50">
+            Email Status
+          </p>
+          <p
+            className={`mt-2 text-sm font-medium ${
+              user?.isEmailVerified
+                ? "text-green-400"
+                : "text-yellow-400"
+            }`}
+          >
+            {user?.isEmailVerified ? "Verified" : "Not Verified"}
+          </p>
+        </div>
+
+        {/* Subscription */}
+        <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+          <p className="text-xs uppercase tracking-wider text-white/50">
+            Subscription
+          </p>
+          <p className="mt-2 text-sm font-medium text-cyan-200">
+            {user?.subscription?.plan?.toUpperCase() || "FREE"}
+          </p>
+          <p className="mt-1 text-xs text-white/50">
+            Status: {user?.subscription?.status || "trial"}
+          </p>
+        </div>
+
+        {/* Gemini API */}
+        <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+          <p className="text-xs uppercase tracking-wider text-white/50">
+            Gemini API Key
+          </p>
+          <p
+            className={`mt-2 text-sm font-medium ${
+              user?.gemini?.isProvidedByUser
+                ? "text-green-400"
+                : "text-red-400"
+            }`}
+          >
+            {user?.gemini?.isProvidedByUser
+              ? "Connected"
+              : "Not Configured"}
+          </p>
+        </div>
+
+        {/* Account Type */}
+        <div className="rounded-xl border border-white/10 bg-black/40 p-4">
+          <p className="text-xs uppercase tracking-wider text-white/50">
+            Auth Method
+          </p>
+          <p className="mt-2 text-sm font-medium text-cyan-200">
+            {(user?.googleId=="GoogleAuth")? "Google OAuth" : "Email & Password"}
+          </p>
+        </div>
+      </div>
     </div>
-  )
+  </div>
+);
+
 }
 
 export default Info

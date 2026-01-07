@@ -136,7 +136,6 @@ export const signUp = async (req: Request, res: Response): Promise<void> => {
             .json({
                 success: true,
                 message: "User registered successfully. Please verify your email.",
-                user: loggedInUser,
             });
 
     } catch (error: any) {
@@ -285,7 +284,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
             .json({
                 success: true,
                 message: "Login successful",
-                user: loggedInUser,
             });
     }
     catch (error: any) {
@@ -442,6 +440,7 @@ export const googleLogin = async (req: Request, res: Response) => {
         email: payload.email,
         avatar: payload.picture,
         isEmailVerified: payload.email_verified,
+        googleId: "GoogleAuth",
       });
     }
 
@@ -455,10 +454,33 @@ export const googleLogin = async (req: Request, res: Response) => {
       .json({
         success: true,
         message: "Google login successful",
-        user,
       });
 
   } catch (err: any) {
     throw new ApiError(401, err.message || "Google login failed");
   }
 };
+
+export const getProfile = async (req: Request, res: Response): Promise<void> => {
+    try {
+        if (!req.user) {
+            throw new ApiError(401, "Unauthorized");
+        }
+        const userId = req.user?._id;
+        const user = await User.findById(userId).select("-password -refreshToken");
+        if (!user) {
+            throw new ApiError(404, "User not found");
+        }
+        res.status(200).json({
+            success: true,
+            user,
+        });
+    } catch (error: any) {
+        throw new ApiError(
+            error.statusCode || 500,
+            error.message || "Failed to fetch user profile"
+        );
+    }
+};
+
+

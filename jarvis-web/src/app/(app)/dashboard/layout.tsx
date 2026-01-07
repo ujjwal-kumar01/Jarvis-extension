@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils"; // optional, if you use cn()
 import { Toaster } from "sonner";
+import Navbar from "@/components/navbar";
 
 const sidebarOptions = [
   { name: "Info", href: "/dashboard/info" },
@@ -20,15 +21,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="h-screen w-full bg-gradient-to-br from-black via-zinc-900 to-black overflow-hidden">
       {/* OUTER CONTAINER */}
-      <div className="h-full w-full max-w-7xl mx-auto p-4">
+      <div className="h-full w-full max-w-7xl mx-auto px-4">
+      <Navbar />
         <div className="h-full grid grid-cols-[260px_1fr] rounded-2xl border border-white/10 shadow-2xl bg-black/40 backdrop-blur-xl overflow-hidden">
 
           {/* SIDEBAR */}
           <aside className="flex flex-col p-6 border-r border-white/10 bg-gradient-to-b from-black/60 to-black/30">
             {/* BRAND */}
-            <div className="text-2xl font-bold mb-10 tracking-wide">
-              Jarvis
-            </div>
 
             {/* NAV */}
             <nav className="flex flex-col space-y-2">
@@ -51,7 +50,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </aside>
 
           {/* MAIN CONTENT */}
-          <main className="p-8 overflow-auto">
+          <main className="p-4 overflow-auto">
             <div className="h-full rounded-2xl bg-gradient-to-tr from-purple-500/5 via-transparent to-blue-500/5
                             border border-white/10 p-6">
               {children}

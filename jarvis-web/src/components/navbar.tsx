@@ -1,96 +1,81 @@
 'use client'
+import React from 'react'
+import { useEffect, useState } from "react";
+import axios from "axios";
+import { useRouter } from 'next/navigation';
 
-import React, { useEffect, useRef } from 'react'
+function Navbar() {
+    const [user, setUser] = useState({});
+    const router = useRouter();
 
-export default function Navbar() {
-  const imgRef = useRef<HTMLImageElement>(null)
+    const userInfo = async () => {
+        try {
+            const response = await axios.get("/backend/user/getProfile", {
+                withCredentials: true,
+            })
 
-  useEffect(() => {
-  const img = imgRef.current
-  if (!img) return
-
-  // ✅ Initial centered state
-  img.style.transform = `
-    translate(-50%, -50%)
-    translate3d(0px, 0px, 0)
-    scale3d(1.05, 1.05, 1)
-    rotateX(0deg)
-    rotateY(0deg)
-  `
-
-interface MouseMoveEvent extends MouseEvent {}
-
-const handleMouseMove = (e: MouseMoveEvent): void => {
-    const x = (e.clientX / window.innerWidth - 0.5) * 16
-    const y = (e.clientY / window.innerHeight - 0.5) * 16
-
-    const target = img as HTMLImageElement | null
-    if (!target) return
-
-    target.style.transform = `
-        translate(-50%, -50%)
-        translate3d(${x}px, ${y}px, 0)
-        scale3d(1.05, 1.05, 1)
-        rotateX(${-y}deg)
-        rotateY(${x}deg)
-    `
-}
-
-  window.addEventListener('mousemove', handleMouseMove)
-  return () => window.removeEventListener('mousemove', handleMouseMove)
-}, [])
-
-
-  return (
-    <div className="hero">
-      {/* soft glow */}
-      <div className="glow" />
-
-      <img
-        ref={imgRef}
-        src="https://cdn.prod.website-files.com/63e36d09413f83c58ac5d998/64015d6c1131155d558000ed_Large%20Grid.svg"
-        alt="Jarvis Grid"
-        className="grid"
-      />
-
-      <style jsx>{`
-        .hero {
-          position: relative;
-          height: 100vh;
-          overflow: hidden;
-          background: radial-gradient(
-            circle at center,
-            #141414 0%,
-            #0a0a0a 45%,
-            #000 100%
-          );
-          perspective: 1200px;
+            setUser(response.data.user);
+        } catch (error) {
+            console.error('Error fetching user info:', error)
         }
+    }
 
-        .glow {
-          position: absolute;
-          inset: 0;
-          background: radial-gradient(
-            circle at center,
-            rgba(255,255,255,0.08),
-            transparent 60%
-          );
-          pointer-events: none;
+    useEffect(() => {
+        userInfo()
+    }, []);
+
+    const logout = async () => {
+        try {
+            const response = await fetch('/backend/user/logout', {
+                method: 'POST',
+                credentials: 'include',
+            })
+            if (response.ok) {
+                console.log('User logged out successfully')
+            }
+        } catch (error) {
+            console.error('Error logging out:', error)
+        } finally {
+            router.replace('/sign-in')
         }
+    }
 
-        .grid {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          width: 1200px;
-          opacity: 0.55;
+   return (
+  <div className="flex items-center justify-between px-6 py-2 text-white">
 
-          transform-style: preserve-3d;
-          will-change: transform;
-          transition: transform 0.12s ease-out;
-          pointer-events: none;
-        }
-      `}</style>
+    {/* Logo */}
+    <img src='https://res.cloudinary.com/dowcqyxsi/image/upload/v1767794387/012844dd547f6b5b0f79b63ce3f256e427f4dac2_vsoo3w.png' className='h-15 ml-5' alt='jarvis'/>
+    {/* Profile Section */}
+    <div className="flex items-center gap-4">
+
+      {/* Profile Button */}
+      <div
+        onClick={() => router.replace('/dashboard/info')}
+        className="flex cursor-pointer items-center gap-3 rounded-full bg-white/5 backdrop-blur-md border border-white/10 px-4 py-1 shadow-lg hover:bg-white/10 transition"
+      >
+        <img
+          src={user?.avatar || "/default-avatar.png"}
+          alt="Profile Picture"
+          className="h-8 w-8 rounded-full object-cover "
+        />
+
+        <span className="text-lg font-medium tracking-wide text-zinc-400">
+          @{user?.username}
+        </span>
+      </div>
+
+      {/* Logout */}
+      <button
+        onClick={logout}
+        className="rounded-full border border-red-400/30 px-4 py-1 text-sm font-semibold uppercase tracking-wider text-red-400 hover:bg-red-400/10 hover:text-red-300 transition"
+      >
+        Logout
+      </button>
     </div>
-  )
+  </div>
+);
+
+
 }
+
+export default Navbar

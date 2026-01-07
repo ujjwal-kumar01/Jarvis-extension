@@ -6,6 +6,7 @@ import {
     verifyEmail, 
     resendVerificationCode,
     logout,
+    getProfile,
 } from '../controllers/user.controller.js';
 import { verifyJWT } from '../middlewares/auth.middlewares.js';
 import {upload } from '../middlewares/multer.middlewares.js';
@@ -24,5 +25,6 @@ router.route("/logout").post(verifyJWT,logout)
 router.post("/verifyEmail",verifyJWT ,verifyEmail)
 router.post("/resendVerificationCode",verifyJWT ,resendVerificationCode)
 router.post("/google-login", googleLogin)
+router.get('/getProfile',verifyJWT,getProfile)
 
 export default router;

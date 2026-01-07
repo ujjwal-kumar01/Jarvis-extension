@@ -12,7 +12,7 @@ export interface IUser extends Document {
   password?: string;
   googleId?: string;
   isEmailVerified: boolean;
-  avatar?: string;
+  avatar: string;
 
   verification?: {
     code: string;
@@ -76,7 +76,10 @@ const userSchema = new mongoose.Schema<IUser>(
       default: false,
     },
 
-    avatar: String,
+    avatar: {
+      type: String,
+      default: 'https://res.cloudinary.com/dowcqyxsi/image/upload/v1767789328/profile_mdwh3z.png',
+    },
 
     verification: {
       code: String,
@@ -155,7 +158,7 @@ userSchema.methods.generateAccessToken = function (): string {
       email: this.email,
       username: this.username,
     },
-    process.env.ACCESS_TOKEN_SECRET,
+    process.env.ACCESS_TOKEN_SECRET as string,
     {
       expiresIn: process.env.ACCESS_TOKEN_EXPIRY || "15m",
     }
@@ -171,7 +174,7 @@ userSchema.methods.generateRefreshToken = function (): string {
     {
       _id: this._id,
     },
-    process.env.REFRESH_TOKEN_SECRET,
+    process.env.REFRESH_TOKEN_SECRET as string,
     {
       expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "7d",
     }
