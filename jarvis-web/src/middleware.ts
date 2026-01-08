@@ -14,8 +14,7 @@ export async function middleware(request: NextRequest) {
   if (
     token &&
     (url.pathname.startsWith('/sign-in') ||
-      url.pathname.startsWith('/sign-up') ||
-      url.pathname === '/')
+      url.pathname.startsWith('/sign-up') )
   ) {
     const url=new URL('/dashboard/info', request.url);
     // url.searchParams.set("reason", "authorized");

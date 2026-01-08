@@ -1,9 +1,12 @@
 // layout.tsx
 import Link from "next/link";
 import { ReactNode } from "react";
+import { headers } from "next/headers";
 import { cn } from "@/lib/utils"; // optional, if you use cn()
 import { Toaster } from "sonner";
 import Navbar from "@/components/navbar";
+import axios from "axios";
+import { UserProvider } from "@/app/context/userContext";
 
 const sidebarOptions = [
   { name: "Info", href: "/dashboard/info" },
@@ -17,8 +20,26 @@ interface DashboardLayoutProps {
   children: ReactNode;
 }
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default async function DashboardLayout({ children }: DashboardLayoutProps) {
+
+  let initialUser = {};
+  
+  try {
+    const headersList = await headers();
+    const response = await axios.get(`${process.env.BASE_URL}/user/getProfile`, {
+      withCredentials: true,
+      headers: {
+        cookie: headersList.get('cookie') || '', // If needed for SSR cookies
+      },
+    });
+    initialUser = response.data.user;
+  } catch (err) {
+    console.error('Error fetching user in layout:', err);
+    initialUser = {}; // fallback
+  }
+
   return (
+    <UserProvider initialUser={initialUser}> 
     <div className="h-screen w-full bg-gradient-to-br from-black via-zinc-900 to-black overflow-hidden">
       {/* OUTER CONTAINER */}
       <div className="h-full w-full max-w-7xl mx-auto px-4">
@@ -50,10 +71,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </aside>
 
           {/* MAIN CONTENT */}
-          <main className="p-4 overflow-auto">
+          <main className="p-4 overflow-auto ">
             <div className="h-full rounded-2xl bg-gradient-to-tr from-purple-500/5 via-transparent to-blue-500/5
                             border border-white/10 p-6">
-              {children}
+              {children }
               <Toaster
                 richColors
                 closeButton
@@ -63,5 +84,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </div>
     </div>
+    </UserProvider>
   );
 }

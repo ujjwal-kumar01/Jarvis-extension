@@ -98,6 +98,7 @@ export const signUp = async (req: Request, res: Response): Promise<void> => {
                 password,
                 avatar: avatar?.url,
                 verification,
+                hasPassword: true,
             });
         } catch (dbError) {
             throw new ApiError(500, "Failed to create user");

@@ -13,6 +13,7 @@ export interface IUser extends Document {
   googleId?: string;
   isEmailVerified: boolean;
   avatar: string;
+  hasPassword: boolean;
 
   verification?: {
     code: string;
@@ -64,6 +65,11 @@ const userSchema = new mongoose.Schema<IUser>(
 
     password: {
       type: String,
+    },
+
+    hasPassword: {
+      type: Boolean,
+      default: false,
     },
 
     googleId: {

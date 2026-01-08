@@ -4,6 +4,7 @@ import React, { useEffect, useRef , useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import axios from 'axios'
+import { useUser } from '@/app/context/userContext';
 
 function Info() {
   // const searchParams = useSearchParams()
@@ -28,25 +29,8 @@ function Info() {
   //   }
   // }, [reason, router])
 
-  const [user, setUser] = useState({});
-    const router = useRouter();
-    const userInfo = async () => {
-        try {
-            const response = await axios.get("/backend/user/getProfile", {
-                withCredentials: true,
-            })
 
-            setUser(response.data.user);
-        } catch (error) {
-            console.error('Error fetching user info:', error)
-        }
-    }
-
-    useEffect(() => {
-        userInfo()
-    }, []);
-
-  
+  const { user } = useUser();  
 
   return (
   <div className="min-h-screen text-white">
