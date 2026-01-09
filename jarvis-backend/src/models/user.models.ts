@@ -21,16 +21,17 @@ export interface IUser extends Document {
     purpose: "email_verification" | "password_reset";
   };
 
-  subscription?: {
+  subscription: {
     plan: "free" | "monthly" | "yearly";
     status: "trial" | "active" | "expired" | "cancelled";
     trialEndsAt: Date;
     currentPeriodEndsAt?: Date;
   };
 
-  gemini?: {
-    apiKeyEncrypted?: string;
+  gemini: {
+    apiKeyEncrypted: string;
     isProvidedByUser: boolean;
+    apiKeyLast4:string
   };
 
   refreshToken?: string;
@@ -115,11 +116,15 @@ const userSchema = new mongoose.Schema<IUser>(
     },
 
     gemini: {
-      apiKeyEncrypted: String,
+      apiKeyEncrypted: {
+        type: String,
+        default:""
+      },
       isProvidedByUser: {
         type: Boolean,
         default: false,
       },
+      apiKeyLast4: { type: String }, // 👈 add
     },
 
     refreshToken: {

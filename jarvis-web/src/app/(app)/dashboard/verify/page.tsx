@@ -15,9 +15,16 @@ import { Input } from '@/components/ui/input';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { verifySchema } from '@/schemas/verifySchema';
+import { useUser } from '@/app/context/userContext';
+import axios from 'axios';
+import { toast } from "sonner"
+import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 export default function VerifyForm() {
   const router = useRouter();
+  const { user, setUser } = useUser();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof verifySchema>>({
     resolver: zodResolver(verifySchema),
@@ -26,8 +33,39 @@ export default function VerifyForm() {
     },
   });
 
+  const resend = async (): Promise<void> => {
+    try {
+      const response = await axios.post('/user/resendVerificationCode', {}, {
+        withCredentials: true,
+      });
+      if (response.data.success) {
+        toast.success(`Verification code resent successfully to ${user?.email}`);
+      }
+    } catch (error) {
+      console.error('Error resending verification code:', error);
+      toast.error('Failed to resend verification code. Please try again.');
+    }
+  }
+
   const onSubmit = async (data: z.infer<typeof verifySchema>) => {
-    console.log(data);
+    setIsSubmitting(true);
+    try {
+      const response = await axios.post('/user/verifyEmail', data, {
+        withCredentials: true,
+      });
+      console.log('Email verified successfully:', response.data);
+      toast.success("Email verified successfully", {
+        description: "You can now access all features",
+      })
+      router.replace('/dashboard/info');
+    } catch (error: any) {
+      console.error('Error verifying email:', error);
+      const message = error.response?.data?.message || 'Failed to verify email. Please try again.';
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+      setUser({ ...user, isEmailVerified: true }); // update user state
+    }
   };
 
   return (
@@ -57,33 +95,50 @@ export default function VerifyForm() {
                       </FormLabel>
                       <Input
                         {...field}
+                        disabled={user?.isEmailVerified}
                         placeholder="Enter 6-digit code"
-                        className="h-10 bg-zinc-800 border-zinc-700 text-white text-center tracking-widest"
+                        className="h-10 bg-zinc-800 border-zinc-700 text-white text-center tracking-widest "
                       />
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                {user?.isEmailVerified && (
+                  <p className="text-green-600 text-m text-center">
+                    Your email is already verified!
+                  </p>
+                )}
 
-                <Button
-                  type="submit"
-                  className="w-full h-10 bg-white text-black hover:bg-zinc-200"
-                >
-                  Verify
-                </Button>
+                {!user?.isEmailVerified && (
+                  isSubmitting ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Please wait</span>
+                    </div>
+                  ) : (
+                    <Button
+                      type="submit"
+                      className="w-full h-10 bg-white text-black hover:bg-zinc-200"
+                    >
+                      Verify
+                    </Button>
+                  )
+                )}
               </form>
             </Form>
 
-            <p className="text-xs text-zinc-400 mt-5 text-center">
-              Didn&apos;t receive the code?{' '}
-              <button className="text-white underline">
-                Resend
-              </button>
-            </p>
+            {user?.isEmailVerified ? null : (
+              <p className="text-xs text-zinc-400 mt-5 text-center">
+                Didn&apos;t receive the code?{' '}
+                <button onClick={resend} className="text-white underline hover:text-gray-300 cursor-pointer">
+                  Resend
+                </button>
+              </p>)
+            }
 
             <p className="text-xs text-zinc-500 mt-2 text-center">
-              <Link href="/sign-in" className="underline">
-                Back to sign in
+              <Link href="/dashboard/info" className="underline">
+                Back to Info
               </Link>
             </p>
           </div>

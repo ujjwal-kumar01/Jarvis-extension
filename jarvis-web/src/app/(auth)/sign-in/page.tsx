@@ -49,16 +49,14 @@ export default function SignInForm() {
   const onSubmit = async (data: z.infer<typeof signInSchema>) => {
     setIsSubmitting(true);
     try {
-    const response = await axios.post('/backend/user/login', data);
+      const response = await axios.post('/backend/user/login', data);
       console.log('User signed in successfully:', response.data);
       toast.success("user logged in successfully", {
         description: "Enjoy using Jarvis",
       })
-      if(response.data.user.isEmailVerified === false){
-      router.replace('/dashboard/verify'); 
-      } else {
-        router.replace('/dashboard/info');
-      }
+      const isVerified = Boolean(response.data?.user?.isEmailVerified);
+      router.replace(isVerified ? '/dashboard/info' : '/dashboard/verify');
+
     } catch (error) {
       let message = "Something went wrong";
 
@@ -74,8 +72,8 @@ export default function SignInForm() {
       setIsSubmitting(false);
     }
   };
-  
-   const handleGoogleLogin = async (credential: string) => {
+
+  const handleGoogleLogin = async (credential: string) => {
     try {
       const response = await axios.post('/backend/user/google-login', {
         credential, // 🔥 THIS is the ID token
@@ -123,7 +121,7 @@ export default function SignInForm() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-zinc-300">
-                        Email 
+                        Email
                       </FormLabel>
                       <Input
                         {...field}
@@ -151,7 +149,7 @@ export default function SignInForm() {
                     </FormItem>
                   )}
                 />
-                
+
 
                 <Button
                   type="submit"
@@ -159,13 +157,13 @@ export default function SignInForm() {
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Please wait
-                </>
-              ) : (
-                'Log In'
-              )}
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Please wait
+                    </>
+                  ) : (
+                    'Log In'
+                  )}
                 </Button>
               </form>
             </Form>

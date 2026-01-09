@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import type { Request, Response, NextFunction } from "express";
 import User from "../models/user.models.js";
 import { ApiError } from "../utils/ApiError.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
@@ -226,12 +226,11 @@ export const resendVerificationCode = async (
         // Generate new verification code
         const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
         const verifyCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
-        user.verification = {   
+        user.verification = {
             code: verifyCode,
             expiresAt: verifyCodeExpiry,
             purpose: "email_verification",
         };
-        await user.save();
         // Send verification email
         const emailResponse = await sendVerificationEmail(
             user.email,
@@ -241,6 +240,7 @@ export const resendVerificationCode = async (
         if (!emailResponse?.success) {
             throw new Error("Email service failed");
         }
+        await user.save();
         res.status(200).json({
             success: true,
             message: "Verification code resent successfully",
@@ -338,7 +338,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 //       throw new ApiError(400, "Authorization code is required");
 //     }
 //     console.log("Google authorization code:", code);
-    
+
 //     let googleResponse;
 //     try {
 //         googleResponse = await oauth2Client.getToken(code);        
@@ -346,7 +346,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 //         console.error("Error exchanging code for tokens:", error);
 //         throw new ApiError(401, "Failed to exchange code for tokens");
 //     }
-    
+
 //     if (!googleResponse.tokens.access_token) {
 //         console.error("Failed to obtain access token from Google:", googleResponse);
 //       throw new ApiError(401, "Failed to obtain access token from Google");
@@ -411,55 +411,55 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 
 
 export const googleLogin = async (req: Request, res: Response) => {
-  try {
-    const { credential } = req.body;
+    try {
+        const { credential } = req.body;
 
-    if (!credential) {
-      throw new ApiError(400, "Google credential is required");
+        if (!credential) {
+            throw new ApiError(400, "Google credential is required");
+        }
+
+        if (!process.env.GOOGLE_CLIENT_ID) {
+            throw new ApiError(500, "Google Client ID is not configured");
+        }
+
+        const ticket = await client.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+
+        const payload = ticket.getPayload();
+
+        if (!payload?.email) {
+            throw new ApiError(400, "Invalid Google token");
+        }
+
+        let user = await User.findOne({ email: payload.email });
+
+        if (!user) {
+            user = await User.create({
+                username: payload.name,
+                email: payload.email,
+                avatar: payload.picture,
+                isEmailVerified: payload.email_verified,
+                googleId: "GoogleAuth",
+            });
+        }
+
+        const { accessToken, refreshToken } =
+            await generateAccessAndRefreshTokens(user._id as mongoose.Types.ObjectId);
+
+        res
+            .status(200)
+            .cookie("accessToken", accessToken, { httpOnly: true })
+            .cookie("refreshToken", refreshToken, { httpOnly: true })
+            .json({
+                success: true,
+                message: "Google login successful",
+            });
+
+    } catch (err: any) {
+        throw new ApiError(401, err.message || "Google login failed");
     }
-
-    if (!process.env.GOOGLE_CLIENT_ID) {
-      throw new ApiError(500, "Google Client ID is not configured");
-    }
-
-    const ticket = await client.verifyIdToken({
-      idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
-
-    const payload = ticket.getPayload();
-
-    if (!payload?.email) {
-      throw new ApiError(400, "Invalid Google token");
-    }
-
-    let user = await User.findOne({ email: payload.email });
-
-    if (!user) {
-      user = await User.create({
-        username: payload.name,
-        email: payload.email,
-        avatar: payload.picture,
-        isEmailVerified: payload.email_verified,
-        googleId: "GoogleAuth",
-      });
-    }
-
-    const { accessToken, refreshToken } =
-      await generateAccessAndRefreshTokens(user._id as mongoose.Types.ObjectId);
-
-    res
-      .status(200)
-      .cookie("accessToken", accessToken, { httpOnly: true })
-      .cookie("refreshToken", refreshToken, { httpOnly: true })
-      .json({
-        success: true,
-        message: "Google login successful",
-      });
-
-  } catch (err: any) {
-    throw new ApiError(401, err.message || "Google login failed");
-  }
 };
 
 export const getProfile = async (req: Request, res: Response): Promise<void> => {
@@ -484,4 +484,132 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
     }
 };
 
+import crypto from "crypto";
+const getEncryptionKey = (): Buffer => {
+  const key = process.env.ENCRYPTION_KEY;
 
+  if (!key) {
+    throw new Error("ENCRYPTION_KEY is missing");
+  }
+
+  if (key.length !== 64) {
+    throw new Error("ENCRYPTION_KEY must be 64 hex characters");
+  }
+
+  return Buffer.from(key, "hex");
+};
+
+const encrypt = (text: string): string => {
+  const iv = crypto.randomBytes(16);
+  const key = getEncryptionKey();
+
+  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+
+  const encrypted =
+    cipher.update(text, "utf8", "hex") + cipher.final("hex");
+
+  return `${iv.toString("hex")}:${encrypted}`;
+};
+
+
+const decrypt = (encryptedText: string): string => {
+  const key = getEncryptionKey();
+  const [ivHex, encrypted] = encryptedText.split(":");
+
+  if (!ivHex || !encrypted) {
+    throw new Error("Invalid encrypted text format");
+  }
+
+  const iv = Buffer.from(ivHex, "hex");
+  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+
+  return (
+    decipher.update(encrypted, "hex", "utf8") +
+    decipher.final("utf8")
+  );
+};
+
+
+
+export const updateGeminiKey = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { apiKey } = req.body;
+
+    if (!req.user) {
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    if (!apiKey || typeof apiKey !== 'string') {
+      throw new ApiError(400, "Invalid API key");
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    const encryptedKey = encrypt(apiKey); // NOT bcrypt
+
+    user.gemini.apiKeyEncrypted = encryptedKey;
+    user.gemini.isProvidedByUser = true;
+    user.gemini.apiKeyLast4 = apiKey.slice(-4); // 👈 store this
+
+    await user.save();
+
+    const newuser = await User.findById(user._id).select(
+      "-password -refreshToken -gemini.apiKeyEncrypted"
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Gemini API key updated successfully",
+      user:newuser
+    });
+
+  } catch (error: any) {
+      throw new ApiError(
+        error.statusCode || 500,
+        error.message || "Failed to update Gemini key"
+    );
+  }
+};
+
+export const removeGeminiKey = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    console.log("remove hit")
+    if (!req.user) {
+      throw new ApiError(401, "Unauthorized");
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    user.gemini.apiKeyEncrypted = "";
+    user.gemini.isProvidedByUser = false;
+    user.gemini.apiKeyLast4="";
+
+    await user.save();
+    const newuser = await User.findById(user._id).select(
+      "-password -refreshToken -gemini.apiKeyEncrypted"
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Gemini API key removed successfully",
+      user:newuser
+    });
+
+  } catch (error: any) {
+      throw new ApiError(
+        error.statusCode || 500,
+        error.message || "Failed to remove Gemini key"
+    );
+  }
+};
