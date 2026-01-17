@@ -83,7 +83,7 @@ function Home() {
       </section>
 
       {/* HOW IT WORKS */}
-      <section className="max-w-7xl mx-auto px-6 py-20">
+      <section className="max-w-7xl mx-auto px-6 py-15">
         <h2 className="text-3xl font-semibold text-center mb-14">
           How Jarvis Works
         </h2>
@@ -115,7 +115,7 @@ function Home() {
               key={item.step}
               className="relative rounded-2xl border border-white/10 bg-black/40 p-6"
             >
-              <span className="absolute -top-4 -left-4 text-5xl font-bold text-white/5">
+              <span className="relative -top-4 text-5xl font-bold text-white/15">
                 {item.step}
               </span>
               <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
@@ -126,7 +126,7 @@ function Home() {
       </section>
 
       {/* PLANS */}
-      <section className="max-w-7xl mx-auto px-6 py-20">
+      <section className="max-w-7xl mx-auto px-6 py-15">
         <h2 className="text-3xl font-semibold text-center mb-14">
           Simple Pricing
         </h2>

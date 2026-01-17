@@ -24,6 +24,7 @@ function Form() {
     setLoading(true);
     setResp("");
     setFunctionCode("");
+    setCategory("");
 
     try {
       /****************************************
@@ -31,14 +32,18 @@ function Form() {
        ****************************************/
       appendLog("🔍 Identifying task category...");
 
-      const identifyRes = await fetch("http://localhost:8000/task/identifyTask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task }),
-      });
+      const identifyRes = await fetch(
+        "http://localhost:8000/task/identifyTask",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task }),
+        }
+      );
 
       const identifyData = await identifyRes.json();
-      if (!identifyData.success) throw new Error("Failed to identify category");
+      if (!identifyData.success)
+        throw new Error("Failed to identify category");
 
       const detectedCategory = identifyData.category;
       setCategory(detectedCategory);
@@ -103,7 +108,6 @@ function Form() {
         .replace(/```/g, "")
         .trim();
 
-        
       setResp(execData.output || "");
       setFunctionCode(code);
       appendLog("📦 Function code generated.");
@@ -188,39 +192,74 @@ function Form() {
   };
 
   return (
-    <div className="p-6 flex flex-col items-center text-black min-w-[350px]">
-      <form onSubmit={execute} className="flex flex-col gap-2 w-full max-w-md">
-        <input
-          type="text"
-          placeholder="Enter your task"
-          value={task}
-          onChange={(e) => setTask(e.target.value)}
-          className="border p-2 rounded-md"
-        />
-
-        <button className="bg-blue-500 text-white p-2 rounded-md">
-          {loading ? "Processing..." : "Execute"}
-        </button>
-      </form>
-
-      {category && (
-        <p className="mt-2 text-sm text-gray-600 w-full text-left">
-          <b>Category:</b> {category}
-        </p>
-      )}
-
-      <div
-        ref={logRef}
-        className="mt-4 bg-gray-100 p-3 rounded-md w-full h-60 overflow-auto"
-      >
-        <pre className="text-sm whitespace-pre-wrap">{resp}</pre>
-      </div>
-
-      {functionCode && (
-        <div className="mt-4 bg-gray-200 p-3 rounded-md w-full">
-          <pre className="text-sm whitespace-pre-wrap">{functionCode}</pre>
+    <div className="min-w-[360px] p-4 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+      <div className="rounded-2xl shadow-xl border border-white/10 bg-white/10 backdrop-blur-lg overflow-hidden">
+        {/* Header */}
+        <div className="px-5 py-4 bg-gradient-to-r from-cyan-500 to-blue-600">
+          <h1 className="text-lg font-semibold tracking-wide">
+            🤖 Jarvis Assistant
+          </h1>
+          <p className="text-xs text-white/80">
+            Natural language → Browser automation
+          </p>
         </div>
-      )}
+
+        {/* Body */}
+        <div className="p-4 space-y-4">
+          <form onSubmit={execute} className="space-y-3">
+            <input
+              type="text"
+              placeholder="What should I do for you?"
+              value={task}
+              onChange={(e) => setTask(e.target.value)}
+              className="w-full rounded-xl px-4 py-2 text-sm bg-slate-900/80 border border-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 placeholder:text-gray-400"
+            />
+
+            <button
+              disabled={loading}
+              className={`w-full rounded-xl py-2 text-sm font-medium transition-all
+                ${
+                  loading
+                    ? "bg-gray-600 cursor-not-allowed"
+                    : "bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90"
+                }`}
+            >
+              {loading ? "Processing..." : "Execute Task"}
+            </button>
+          </form>
+
+          {category && (
+            <div className="text-xs text-cyan-300">
+              <b>Detected Category:</b> {category}
+            </div>
+          )}
+
+          {/* Logs */}
+          <div className="bg-black/70 rounded-xl border border-white/10">
+            <div className="px-3 py-2 text-xs text-gray-400 border-b border-white/10">
+              🧾 Execution Log
+            </div>
+            <div
+              ref={logRef}
+              className="h-48 overflow-auto p-3 text-xs font-mono text-green-400 whitespace-pre-wrap"
+            >
+              {resp || "Waiting for instructions..."}
+            </div>
+          </div>
+
+          {/* Generated Code */}
+          {functionCode && (
+            <div className="bg-slate-900 rounded-xl border border-white/10">
+              <div className="px-3 py-2 text-xs text-gray-400 border-b border-white/10">
+                ⚙ Generated Function
+              </div>
+              <pre className="p-3 text-xs text-purple-300 overflow-auto whitespace-pre-wrap font-mono">
+                {functionCode}
+              </pre>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
