@@ -62,7 +62,7 @@ Executes browser-level actions safely on the active tab.
 - Click "Load unpacked"
 - Select the jarvis/ folder
 
-<img src="image.png" width="600" height="400" alt="Jarvis Chrome Extension Screenshot">
+<img src="screenshots/image.png" width="450" height="300" alt="Jarvis Chrome Extension Screenshot">
 
 ---
 
@@ -115,6 +115,8 @@ cd jarvis-web
 npm install
 npm run dev
 ```
+
+<img src="screenshots/image2.png" width="450" height="300" alt="Jarvis Web App Dashboard Screenshot">
 
 ---
 
