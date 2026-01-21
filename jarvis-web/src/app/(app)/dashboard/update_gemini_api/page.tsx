@@ -104,7 +104,7 @@ function UpdateAPI() {
     : 'No API key set';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white flex items-center justify-center px-4 rounded-2xl">
       <div className="w-full max-w-xl bg-gray-900/80 border border-gray-800 rounded-2xl shadow-2xl p-8 space-y-8">
 
         <div className="text-center">

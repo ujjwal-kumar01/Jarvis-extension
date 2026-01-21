@@ -2,8 +2,14 @@
 import React from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@/app/context/userContext'
+import { Menu, X } from 'lucide-react'
 
-function Navbar() {
+interface NavbarProps {
+  sidebarOpen: boolean
+  sidebarToggle: () => void
+}
+
+function Navbar({ sidebarOpen, sidebarToggle }: NavbarProps) {
   const router = useRouter()
   const { user, setUser } = useUser()
 
@@ -16,14 +22,23 @@ function Navbar() {
     } catch (error) {
       console.error('Error logging out:', error)
     } finally {
-      // 🔥 CRITICAL PART
       setUser(null)          // clear client state
       router.replace('/sign-in')
     }
   }
 
   return (
-    <div className="flex items-center justify-between px-6 py-2 text-white">
+    <div className="w-full flex items-center justify-between px-6 py-2 text-white bg-black/80 backdrop-blur-md border-b border-white/10 fixed z-30">
+
+      {/* Hamburger for mobile */}
+      <button
+        className="md:hidden p-2 rounded-md text-white hover:bg-white/10 transition"
+        onClick={sidebarToggle}
+      >
+        {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+      </button>
+
+
       {/* Logo */}
       <img
         src="https://res.cloudinary.com/dowcqyxsi/image/upload/v1767794387/012844dd547f6b5b0f79b63ce3f256e427f4dac2_vsoo3w.png"
@@ -31,9 +46,8 @@ function Navbar() {
         alt="jarvis"
       />
 
-      {/* Profile Section */}
+      {/* Profile & Logout */}
       <div className="flex items-center gap-4">
-        {/* Profile */}
         {user && (
           <div
             onClick={() => router.replace('/dashboard/info')}
@@ -49,8 +63,6 @@ function Navbar() {
             </span>
           </div>
         )}
-
-        {/* Logout */}
         <button
           onClick={logout}
           className="rounded-full border border-red-400/30 px-4 py-1 text-sm font-semibold uppercase tracking-wider text-red-400 hover:bg-red-400/10 hover:text-red-300 transition"

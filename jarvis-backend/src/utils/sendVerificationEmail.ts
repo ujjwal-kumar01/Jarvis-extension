@@ -8,8 +8,9 @@ export async function sendVerificationEmail(
 ): Promise<{ success: boolean; message: string }> {
   const resend = new Resend(process.env.RESEND_API_KEY!);
   try {
+    console.log(verifyCode,email)
     await resend.emails.send({
-      from: 'dev@hiteshchoudhary.com',
+      from: "Jarvis <onboarding@resend.dev>",
       to: email,
       subject: 'Mystery Message Verification Code',
       react: VerificationEmail({ username, otp: verifyCode }),

@@ -1,56 +1,191 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import  { useUser } from '@/app/context/userContext';
+import { useUser } from '@/app/context/userContext';
+import { toast } from 'sonner';
+import axios from 'axios';
 
 function UpdateInfo() {
-  
-// Simulated user data from context
-const { user, setUser } = useUser();
-const hasPassword = user?.hasPassword || false;
+  const { user, setUser } = useUser();
+  const hasPassword = user?.hasPassword ?? false;
 
-const schema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
-  password: hasPassword
-    ? z.string().min(6, 'Password must be at least 6 characters').optional()
-    : z.string().min(6, 'Password must be at least 6 characters'),
-  confirmPassword: z.string().min(6, 'Confirm Password must match'),
-});
+  /* =======================
+     Zod Schema
+  ======================== */
+  const schema = z
+    .object({
+      username: z.string().min(2, 'Name must be at least 2 characters'),
+      oldPassword: z.string().optional(),
+      password: z.string().optional(),
+      confirmPassword: z.string().optional(),
+      avatar: z
+        .custom<FileList>()
+        .optional()
+        .refine(
+          files => !files || files.length === 0 || files[0].size <= 2_000_000,
+          'Avatar must be under 2MB'
+        )
+        .refine(
+          files =>
+            !files ||
+            files.length === 0 ||
+            ['image/png', 'image/jpeg', 'image/webp'].includes(files[0].type),
+          'Only PNG, JPG, or WEBP images are allowed'
+        )
+    })
+    .refine(
+      data => !data.password || data.password === data.confirmPassword,
+      {
+        message: 'Passwords do not match',
+        path: ['confirmPassword'],
+      }
+    )
+    .refine(
+      data => !hasPassword || !data.password || !!data.oldPassword,
+      {
+        message: 'Current password is required',
+        path: ['oldPassword'],
+      }
+    );
 
-type FormData = z.infer<typeof schema>;
+  type FormData = z.infer<typeof schema>;
 
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar || null);
+  /* =======================
+     Avatar Preview
+  ======================== */
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(
+    user?.avatar || null
+  );
 
+  useEffect(() => {
+    return () => {
+      if (avatarPreview?.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+    };
+  }, [avatarPreview]);
+
+  useEffect(() => {
+    if (user?.avatar && !avatarPreview?.startsWith('blob:')) {
+      setAvatarPreview(user.avatar);
+    }
+  }, [user]);
+
+  /* =======================
+     React Hook Form
+  ======================== */
   const {
     register,
     handleSubmit,
-    watch,
     formState: { errors },
+    reset,
+    watch
   } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
-  const onSubmit = (data: FormData) => {
-    console.log('Form submitted:', data);
-    // Here: send data + avatar to backend
+  useEffect(() => {
+    if (user) {
+      reset({ username: user.username });
+    }
+  }, [user, reset]);
+
+  /* =======================
+     Submit Handler
+  ======================== */
+  const onSubmit = async (data: FormData) => {
+    try {
+      const formData = new FormData();
+
+      // Only send changed fields
+      if (data.username && data.username !== user?.username) {
+        formData.append('username', data.username);
+      }
+
+      if (data.password) {
+        formData.append('password', data.password);
+      }
+
+      if (data.oldPassword) {
+        formData.append('oldPassword', data.oldPassword);
+      }
+
+      if (data.avatar?.[0]) {
+        formData.append('avatar', data.avatar[0]);
+      }
+
+      // Prevent empty submit
+      if ([...formData.keys()].length === 0) {
+        toast.info('No changes to update');
+        return;
+      }
+
+      const response = await axios.post(
+        '/backend/user/updateProfile',
+        formData,
+        { withCredentials: true }
+      );
+
+      setUser(response.data.user);
+      // reset({
+      //   username: response.data.user.username,
+      // });
+
+      toast.success('Profile updated successfully');
+    } catch (error) {
+      console.log(error)
+      let message = "Something went wrong";
+      if (axios.isAxiosError(error)) {
+        message =
+          error.response?.data?.message ||
+          error.response?.data?.error ||
+          "Update Failed"
+      }
+
+      toast.error('Error updating profile', {
+        description: message,
+      });
+    }
+    reset({
+      username: watch('username'),
+      password: '',
+      confirmPassword: '',
+      oldPassword: '',
+    });
+
   };
 
+  /* =======================
+     Avatar Change Handler
+  ======================== */
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setAvatarPreview(URL.createObjectURL(file));
+    if (!file) return;
+
+    setAvatarPreview(prev => {
+      if (prev?.startsWith('blob:')) {
+        URL.revokeObjectURL(prev);
+      }
+      return URL.createObjectURL(file);
+    });
   };
 
+  /* =======================
+     JSX
+  ======================== */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white flex items-center justify-center px-4">
-      <div className="w-full max-w-xl bg-gray-900/80 backdrop-blur-md border border-gray-800 rounded-2xl shadow-2xl p-8 space-y-8">
+    <div className="min-h-screen rounded-2xl bg-gradient-to-br from-black via-gray-900 to-black text-white flex items-center justify-center px-4">
+      <div className="w-full m-3 max-w-xl bg-gray-900/80 backdrop-blur-md border border-gray-800 rounded-2xl shadow-2xl p-8 space-y-8">
 
         {/* Header */}
         <div className="text-center">
           <h1 className="text-2xl font-semibold">Update Profile</h1>
-          <p className="text-sm text-gray-400 mt-1">Manage your Jarvis account settings</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Manage your Jarvis account settings
+          </p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -62,84 +197,110 @@ type FormData = z.infer<typeof schema>;
               alt="Avatar"
               className="w-24 h-24 rounded-full object-cover border border-gray-700"
             />
-            <label className="cursor-pointer text-sm text-blue-400 hover:text-blue-300 transition">
+            <label className="cursor-pointer text-sm text-blue-400 hover:text-blue-300">
               Change Avatar
               <input
                 type="file"
                 accept="image/*"
-                onChange={handleAvatarChange}
+                {...register('avatar', {
+                  onChange: handleAvatarChange,
+                })}
                 className="hidden"
               />
             </label>
-          </div>
-
-          {/* Name */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Name</label>
-            <input
-              type="text"
-              {...register('name')}
-              placeholder="Your name"
-              className="w-full bg-black/60 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-            {errors.name && (
-              <p className="text-xs text-red-400 mt-1">{errors.name.message}</p>
+            {errors.avatar && (
+              <p className="text-xs text-red-400">{errors.avatar.message}</p>
             )}
           </div>
 
-          {/* Email (Read-only) */}
+          {/* Username */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Email</label>
-            <div className="relative">
-              <input
-                type="email"
-                disabled
-                value="verified@email.com"
-                className="w-full bg-black/40 border border-gray-800 rounded-lg px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
-              />
-              <span className="absolute right-3 top-2 text-xs text-green-400">
-                Verified ✓
-              </span>
+            <label className="block text-sm text-gray-400 mb-1">Name</label>
+            <input
+              {...register('username')}
+              className="w-full bg-black/60 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+            {errors.username && (
+              <p className="text-xs text-red-400 mt-1">
+                {errors.username.message}
+              </p>
+            )}
+          </div>
+
+          {/* Email */}
+          <div className="w-full">
+            <label className="block text-sm text-gray-400 mb-1">
+              Email
+            </label>
+
+            <input
+              type="email"
+              disabled
+              value={user?.email || ''}
+              className="w-full bg-black/40 border border-gray-800 rounded-lg px-4 py-2 text-sm text-gray-400 cursor-not-allowed focus:outline-none"
+            />
+
+            {/* Verification status */}
+            <div className="mt-1">
+              {user?.isEmailVerified ? (
+                <span className="text-xs text-green-400 font-medium mx-2">
+                  ✓ Verified
+                </span>
+              ) : (
+                <span className="text-xs text-red-400 font-medium mx-2">
+                  ⚠ Please verify your email
+                </span>
+              )}
             </div>
           </div>
+
+
 
           {/* Password Section */}
           <div>
             <h2 className="text-lg font-semibold mb-4">Security</h2>
-            <div className="space-y-4">
-              {hasPassword && (
+
+            {hasPassword && (
+              <div>
                 <input
                   type="password"
                   placeholder="Current password"
-                  {...register('password')}
-                  className="w-full bg-black/60 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  {...register('oldPassword')}
+                  className="w-full bg-black/60 border border-gray-700 rounded-lg px-4 py-2 text-sm mb-2"
                 />
-              )}
-              <input
-                type="password"
-                placeholder={hasPassword ? 'New password' : 'Set password'}
-                {...register('password')}
-                className="w-full bg-black/60 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-              <input
-                type="password"
-                placeholder="Confirm password"
-                {...register('confirmPassword')}
-                className="w-full bg-black/60 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-              {errors.password && (
-                <p className="text-xs text-red-400">{errors.password.message}</p>
-              )}
-              {errors.confirmPassword && (
-                <p className="text-xs text-red-400">{errors.confirmPassword.message}</p>
-              )}
-            </div>
+                {errors.oldPassword && (
+                  <p className="text-xs text-red-400">
+                    {errors.oldPassword.message}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <input
+              type="password"
+              placeholder={hasPassword ? 'New password' : 'Set password'}
+              {...register('password')}
+              className="w-full bg-black/60 border border-gray-700 rounded-lg px-4 py-2 text-sm mt-2"
+            />
+
+            <input
+              type="password"
+              placeholder="Confirm password"
+              {...register('confirmPassword')}
+              className="w-full bg-black/60 border border-gray-700 rounded-lg px-4 py-2 text-sm mt-2"
+            />
+
+            {errors.confirmPassword && (
+              <p className="text-xs text-red-400 mt-1">
+                {errors.confirmPassword.message}
+              </p>
+            )}
           </div>
 
-          {/* Save Button */}
+          {/* Submit */}
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 transition py-2.5 rounded-lg font-medium tracking-wide"
+            className="w-full bg-blue-600 hover:bg-blue-700 transition py-2.5 rounded-lg font-medium"
           >
             Save Changes
           </button>
@@ -148,6 +309,6 @@ type FormData = z.infer<typeof schema>;
       </div>
     </div>
   );
-};
+}
 
 export default UpdateInfo;

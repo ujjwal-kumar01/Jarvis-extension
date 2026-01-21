@@ -35,7 +35,7 @@ export default function VerifyForm() {
 
   const resend = async (): Promise<void> => {
     try {
-      const response = await axios.post('/user/resendVerificationCode', {}, {
+      const response = await axios.post('/backend/user/resendVerificationCode', {}, {
         withCredentials: true,
       });
       if (response.data.success) {
@@ -50,7 +50,7 @@ export default function VerifyForm() {
   const onSubmit = async (data: z.infer<typeof verifySchema>) => {
     setIsSubmitting(true);
     try {
-      const response = await axios.post('/user/verifyEmail', data, {
+      const response = await axios.post('/backend/user/verifyEmail', data, {
         withCredentials: true,
       });
       console.log('Email verified successfully:', response.data);
@@ -69,7 +69,7 @@ export default function VerifyForm() {
   };
 
   return (
-    <div className="h-screen w-full bg-gradient-to-br from-black via-zinc-900 to-black overflow-hidden">
+    <div className="h-screen w-full bg-gradient-to-br from-black via-zinc-900 to-black overflow-hidden rounded-2xl ">
       <div className="h-full w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 rounded-2xl border border-white/10 shadow-2xl">
 
         {/* LEFT – VERIFY */}

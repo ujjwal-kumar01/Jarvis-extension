@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import axios from 'axios'
 import { useUser } from '@/app/context/userContext';
+import Link from 'next/link'
 
 function Info() {
   // const searchParams = useSearchParams()
@@ -31,9 +32,10 @@ function Info() {
 
 
   const { user } = useUser();  
+  // console.log(user)
 
   return (
-  <div className="min-h-screen text-white">
+  <div className="min-h-screen text-white bg-gradient-to-tr from-purple-500/10 via-transparent to-blue-500/10 rounded-2xl">
 
     {/* Page Title */}
     <h1 className="mb-6 text-2xl font-semibold tracking-wider text-gray-600">
@@ -46,7 +48,7 @@ function Info() {
       {/* Header */}
       <div className="flex items-center gap-6 border-b border-white/10 px-6 py-4">
         <img
-          src={user?.avatar || "/default-avatar.png"}
+          src={user?.avatar}
           alt="Avatar"
           className="h-20 w-20 rounded-full border border-cyan-400/40 object-cover"
         />
@@ -122,6 +124,32 @@ function Info() {
         </div>
       </div>
     </div>
+    <div className="mt-8 text-center">
+      <p className="mb-4 text-white/70 text-sm md:text-base">
+    Check out the Jarvis Chrome Extension to get an A.I. assistant for your browser & enjoy automation.
+  </p>
+  <Link href="https://github.com/ujjwal-kumar01/Jarvis-extension" target="_blank" rel="noopener noreferrer">
+    <button
+      className="inline-flex items-center gap-2 px-6 py-3 
+                 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 
+                 text-white font-semibold text-sm
+                 hover:scale-105 hover:opacity-90 transition-transform duration-200 shadow-lg
+                 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2"
+    >
+      Visit Extension
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        className="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+      </svg>
+    </button>
+  </Link>
+</div>
+
   </div>
 );
 

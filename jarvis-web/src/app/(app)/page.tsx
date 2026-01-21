@@ -1,10 +1,14 @@
 import Link from "next/link";
+import Image from "next/image";
 import React from "react";
+import image2 from "../../../public/image2.png"
 
 function Home() {
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-black via-zinc-900 to-black text-white">
+    <div >
+    <div className="min-h-screen w-full bg-gradient-to-br from-black via-zinc-900 to-black text-white ">
       {/* HERO SECTION */}
+      <div className="topImage">
       <section className="max-w-7xl mx-auto px-6 pt-28 pb-20 text-center">
         <h1 className="text-5xl md:text-6xl font-bold tracking-tight bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
           Jarvis – Your Personal AI Control Center
@@ -36,6 +40,12 @@ function Home() {
           </Link>
         </div>
       </section>
+
+      <Image
+      src={image2}
+      alt="dashboard"
+      className=" z-10 w-4/5 md:h-4/5 mx-auto "
+      />
 
       {/* FEATURES */}
       <section className="max-w-7xl mx-auto px-6 py-20">
@@ -136,7 +146,7 @@ function Home() {
             {
               name: "Free",
               price: "₹0",
-              features: ["50 requests/day", "Basic access", "Email support"],
+              features: ["Limited requests/day", "Basic access", "Email support"],
             },
             {
               name: "Monthly",
@@ -197,6 +207,8 @@ function Home() {
       <footer className="border-t border-white/10 py-8 text-center text-sm text-zinc-500">
         © {new Date().getFullYear()} Jarvis. Built for developers.
       </footer>
+      </div>
+    </div>
     </div>
   );
 }

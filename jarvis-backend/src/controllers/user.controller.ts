@@ -9,6 +9,7 @@ import bcrypt from "bcryptjs";
 import axios from "axios";
 import { client } from "../utils/googleAuth.js";
 
+
 export const generateAccessAndRefreshTokens = async (
     userId: mongoose.Types.ObjectId
 ): Promise<{ accessToken: string; refreshToken: string }> => {
@@ -124,7 +125,7 @@ export const signUp = async (req: Request, res: Response): Promise<void> => {
 
         const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(newUser._id as mongoose.Types.ObjectId);
 
-        const loggedInUser = await User.findById(newUser._id).select("-password -refreshToken")
+        const loggedInUser = await User.findById(newUser._id).select("-password -refreshToken -gemini.apiKeyEncrypted")
 
         const options = {
             httpOnly: true,
@@ -137,6 +138,7 @@ export const signUp = async (req: Request, res: Response): Promise<void> => {
             .json({
                 success: true,
                 message: "User registered successfully. Please verify your email.",
+                user:loggedInUser
             });
 
     } catch (error: any) {
@@ -273,7 +275,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         }
 
         const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(user._id as mongoose.Types.ObjectId);
-        const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+        const loggedInUser = await User.findById(user._id).select("-password -refreshToken -gemini.apiKeyEncrypted")
         const options = {
             httpOnly: true,
             secure: true,
@@ -285,6 +287,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
             .json({
                 success: true,
                 message: "Login successful",
+                user:loggedInUser
             });
     }
     catch (error: any) {
@@ -443,6 +446,11 @@ export const googleLogin = async (req: Request, res: Response) => {
                 isEmailVerified: payload.email_verified,
                 googleId: "GoogleAuth",
             });
+        } else {
+            if (payload.picture) {
+                user.avatar = payload.picture;
+            }
+            await user.save();
         }
 
         const { accessToken, refreshToken } =
@@ -468,7 +476,7 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
             throw new ApiError(401, "Unauthorized");
         }
         const userId = req.user?._id;
-        const user = await User.findById(userId).select("-password -refreshToken");
+        const user = await User.findById(userId).select("-password -refreshToken -gemini.apiKeyEncrypted");
         if (!user) {
             throw new ApiError(404, "User not found");
         }
@@ -486,130 +494,196 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
 
 import crypto from "crypto";
 const getEncryptionKey = (): Buffer => {
-  const key = process.env.ENCRYPTION_KEY;
+    const key = process.env.ENCRYPTION_KEY;
 
-  if (!key) {
-    throw new Error("ENCRYPTION_KEY is missing");
-  }
+    if (!key) {
+        throw new Error("ENCRYPTION_KEY is missing");
+    }
 
-  if (key.length !== 64) {
-    throw new Error("ENCRYPTION_KEY must be 64 hex characters");
-  }
+    if (key.length !== 64) {
+        throw new Error("ENCRYPTION_KEY must be 64 hex characters");
+    }
 
-  return Buffer.from(key, "hex");
+    return Buffer.from(key, "hex");
 };
 
 const encrypt = (text: string): string => {
-  const iv = crypto.randomBytes(16);
-  const key = getEncryptionKey();
+    const iv = crypto.randomBytes(16);
+    const key = getEncryptionKey();
 
-  const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+    const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
 
-  const encrypted =
-    cipher.update(text, "utf8", "hex") + cipher.final("hex");
+    const encrypted =
+        cipher.update(text, "utf8", "hex") + cipher.final("hex");
 
-  return `${iv.toString("hex")}:${encrypted}`;
+    return `${iv.toString("hex")}:${encrypted}`;
 };
 
 
 const decrypt = (encryptedText: string): string => {
-  const key = getEncryptionKey();
-  const [ivHex, encrypted] = encryptedText.split(":");
+    const key = getEncryptionKey();
+    const [ivHex, encrypted] = encryptedText.split(":");
 
-  if (!ivHex || !encrypted) {
-    throw new Error("Invalid encrypted text format");
-  }
+    if (!ivHex || !encrypted) {
+        throw new Error("Invalid encrypted text format");
+    }
 
-  const iv = Buffer.from(ivHex, "hex");
-  const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
+    const iv = Buffer.from(ivHex, "hex");
+    const decipher = crypto.createDecipheriv("aes-256-cbc", key, iv);
 
-  return (
-    decipher.update(encrypted, "hex", "utf8") +
-    decipher.final("utf8")
-  );
+    return (
+        decipher.update(encrypted, "hex", "utf8") +
+        decipher.final("utf8")
+    );
 };
 
 
 
 export const updateGeminiKey = async (
-  req: Request,
-  res: Response,
+    req: Request,
+    res: Response,
 ): Promise<void> => {
-  try {
-    const { apiKey } = req.body;
+    try {
+        const { apiKey } = req.body;
 
-    if (!req.user) {
-      throw new ApiError(401, "Unauthorized");
+        if (!req.user) {
+            throw new ApiError(401, "Unauthorized");
+        }
+
+        if (!apiKey || typeof apiKey !== 'string') {
+            throw new ApiError(400, "Invalid API key");
+        }
+
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            throw new ApiError(404, "User not found");
+        }
+
+        const encryptedKey = encrypt(apiKey); // NOT bcrypt
+
+        user.gemini.apiKeyEncrypted = encryptedKey;
+        user.gemini.isProvidedByUser = true;
+        user.gemini.apiKeyLast4 = apiKey.slice(-4); // 👈 store this
+
+        await user.save();
+
+        const newuser = await User.findById(user._id).select(
+            "-password -refreshToken -gemini.apiKeyEncrypted"
+        );
+
+        res.status(200).json({
+            success: true,
+            message: "Gemini API key updated successfully",
+            user: newuser
+        });
+
+    } catch (error: any) {
+        throw new ApiError(
+            error.statusCode || 500,
+            error.message || "Failed to update Gemini key"
+        );
     }
-
-    if (!apiKey || typeof apiKey !== 'string') {
-      throw new ApiError(400, "Invalid API key");
-    }
-
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      throw new ApiError(404, "User not found");
-    }
-
-    const encryptedKey = encrypt(apiKey); // NOT bcrypt
-
-    user.gemini.apiKeyEncrypted = encryptedKey;
-    user.gemini.isProvidedByUser = true;
-    user.gemini.apiKeyLast4 = apiKey.slice(-4); // 👈 store this
-
-    await user.save();
-
-    const newuser = await User.findById(user._id).select(
-      "-password -refreshToken -gemini.apiKeyEncrypted"
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Gemini API key updated successfully",
-      user:newuser
-    });
-
-  } catch (error: any) {
-      throw new ApiError(
-        error.statusCode || 500,
-        error.message || "Failed to update Gemini key"
-    );
-  }
 };
 
 export const removeGeminiKey = async (
-  req: Request,
-  res: Response
+    req: Request,
+    res: Response
 ) => {
-  try {
-    console.log("remove hit")
-    if (!req.user) {
-      throw new ApiError(401, "Unauthorized");
+    try {
+        if (!req.user) {
+            throw new ApiError(401, "Unauthorized");
+        }
+
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            throw new ApiError(404, "User not found");
+        }
+
+        user.gemini.apiKeyEncrypted = "";
+        user.gemini.isProvidedByUser = false;
+        user.gemini.apiKeyLast4 = "";
+
+        await user.save();
+        const newuser = await User.findById(user._id).select(
+            "-password -refreshToken -gemini.apiKeyEncrypted"
+        );
+        return res.status(200).json({
+            success: true,
+            message: "Gemini API key removed successfully",
+            user: newuser
+        });
+
+    } catch (error: any) {
+        throw new ApiError(
+            error.statusCode || 500,
+            error.message || "Failed to remove Gemini key"
+        );
     }
-
-    const user = await User.findById(req.user._id);
-    if (!user) {
-      throw new ApiError(404, "User not found");
-    }
-
-    user.gemini.apiKeyEncrypted = "";
-    user.gemini.isProvidedByUser = false;
-    user.gemini.apiKeyLast4="";
-
-    await user.save();
-    const newuser = await User.findById(user._id).select(
-      "-password -refreshToken -gemini.apiKeyEncrypted"
-    );
-    return res.status(200).json({
-      success: true,
-      message: "Gemini API key removed successfully",
-      user:newuser
-    });
-
-  } catch (error: any) {
-      throw new ApiError(
-        error.statusCode || 500,
-        error.message || "Failed to remove Gemini key"
-    );
-  }
 };
+
+export const updateProfile = async (req: Request, res: Response): Promise<void> => {
+    try {
+        if (!req.user) {
+            throw new ApiError(401, "Unauthorized");
+        }
+
+        const { username, password, oldPassword } = req.body;
+
+        if (!username && !password && !req.file) {
+            throw new ApiError(400, "At least one field is required");
+        }
+
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            throw new ApiError(404, "User not found");
+        }
+
+        // If user already has password → old password required
+        if (user.hasPassword) {
+            if (!oldPassword) {
+                throw new ApiError(400, "Current password is required");
+            }
+
+            const isValid = await user.isPasswordCorrect(oldPassword);
+            if (!isValid) {
+                throw new ApiError(400, "Wrong password");
+            }
+        }
+
+        if (username?.trim()) {
+            user.username = username.trim();
+        }
+
+        if (password?.trim()) {
+            user.password = password;
+            user.hasPassword = true;
+        }
+
+        if (req.file) {
+            const avatarPath = await uploadOnCloudinary(req.file.path);
+            // console.log(avatarPath)
+            if (!avatarPath?.url) {
+                throw new ApiError(400, "Error while uploading on avatar")
+            }
+            user.avatar=avatarPath.url
+        }
+
+        await user.save({ validateBeforeSave: true });
+
+        const updatedUser = await User.findById(user._id).select(
+            "-password -refreshToken -gemini.apiKeyEncrypted"
+        );
+
+        res.status(200).json({
+            success: true,
+            message: "Profile updated successfully",
+            user: updatedUser,
+        });
+    } catch (error: any) {
+        res.status(error.statusCode || 500).json({
+            success: false,
+            message: error.message || "Failed to update profile",
+        });
+    }
+};
+

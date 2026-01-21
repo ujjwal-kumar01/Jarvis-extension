@@ -61,7 +61,6 @@ export default function SignUpForm() {
       setIsSubmitting(false);
     }
 
-    console.log(data);
   };
 
   const handleGoogleLogin = async (credential: string) => {
@@ -223,6 +222,7 @@ export default function SignUpForm() {
 
           {/* 3D placeholder */}
           <div className="mt-10 w-[320px] h-[320px] z-10" />
+          {/* <iframe src='https://my.spline.design/nexbotrobotcharacterconcept-hXtnGL81Iklcyhg7vmQB0zTk/' frameborder='0' width='100%' height='100%'></iframe> */}
         </div>
       </div>
     </div>

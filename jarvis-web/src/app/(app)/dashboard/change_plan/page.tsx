@@ -23,7 +23,7 @@ function ChangePlan() {
   const isPro = currentPlan === 'monthly' || currentPlan === 'yearly';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white flex items-center justify-center px-4">
+    <div className="min-h-screen rounded-2xl bg-gradient-to-br from-black via-gray-900 to-black text-white flex items-center justify-center px-4">
       <div className="w-full max-w-5xl space-y-8">
 
         {/* Header */}
@@ -49,7 +49,7 @@ function ChangePlan() {
             <div className="text-3xl font-bold mb-4">₹0</div>
 
             <ul className="space-y-2 text-sm text-gray-300 mb-6">
-              <li>• 50 Requests per day</li>
+              <li>• Limited Requests per day</li>
               <li>• Your AI keys</li>
               <li>• no memory</li>
             </ul>
@@ -74,13 +74,13 @@ function ChangePlan() {
           <div className={`rounded-2xl border p-6 bg-gray-900/80 backdrop-blur-md shadow-lg
             ${isPro ? 'border-green-500' : 'border-gray-800'}`}
           >
-            <h2 className="text-xl font-semibold mb-2">Pro</h2>
+            <h2 className="text-xl font-semibold mb-2">Pro (upcoming)</h2>
             <p className="text-gray-400 text-sm mb-4">
               For power users and developers
             </p>
 
             <div className="text-3xl font-bold mb-4">
-              ₹499 <span className="text-sm font-normal text-gray-400">/ month</span>
+              ₹XXX <span className="text-sm font-normal text-gray-400">/ month</span>
             </div>
 
             <ul className="space-y-2 text-sm text-gray-300 mb-6">

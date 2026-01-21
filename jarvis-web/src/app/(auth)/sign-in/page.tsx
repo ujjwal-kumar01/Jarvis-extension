@@ -55,6 +55,7 @@ export default function SignInForm() {
         description: "Enjoy using Jarvis",
       })
       const isVerified = Boolean(response.data?.user?.isEmailVerified);
+      console.log(isVerified)
       router.replace(isVerified ? '/dashboard/info' : '/dashboard/verify');
 
     } catch (error) {

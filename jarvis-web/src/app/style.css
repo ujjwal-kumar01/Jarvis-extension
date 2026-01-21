@@ -136,3 +136,12 @@
 .animate-float {
   animation: float 6s ease-in-out infinite;
 }
+
+
+.topImage {
+  background-image: url("https://cdn.prod.website-files.com/63e36d09413f83c58ac5d998/64015d6c1131155d558000ed_Large%20Grid.svg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
