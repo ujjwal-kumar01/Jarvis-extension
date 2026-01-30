@@ -21,7 +21,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     FILL_INPUT: handleFillInput,
     CLICK_BUTTON: handleClickButton,
     EXTRACT_PAGE_DATA: handleExtractPageData,
-    DOM_ACTION: handleDomAction
+    DOM_ACTION: handleDomAction,
+    CHECK_AUTH: checkAuthStatus,
   };
 
   const handler = handlers[msg.type];
@@ -30,6 +31,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true; // Important: keep message channel open for async responses
   }
 });
+
+async function checkAuthStatus(msg, sender, sendResponse) {
+  chrome.cookies.get(
+    {
+      url: "http://localhost:8000",
+      name: "accessToken",
+    },
+    (cookie) => {
+      if (!cookie) {
+        // 🔥 Open login page automatically
+        // chrome.tabs.create({
+        //   url: "http://localhost:3000/",
+        // });
+        
+        redirectToLogin();
+        sendResponse({ loggedIn: false });
+      } else {
+        sendResponse({ loggedIn: true });
+      }
+    }
+  );
+
+  return true; // async response
+}
+
+async function redirectToLogin() {
+  const tabs = await chrome.tabs.query({
+    url: "http://localhost:3000/*",
+  });
+
+  if (tabs.length > 0) {
+    chrome.tabs.update(tabs[0].id, { active: true });
+  } else {
+    chrome.tabs.create({ url: "http://localhost:3000/" });
+  }
+}
+
 
 /************************************************************
  * 1) EXECUTE_TASK → Run generated JS inside the active tab

@@ -11,10 +11,12 @@
     "downloads",
     "storage",
     "history",
-    "sidePanel"
+    "sidePanel",
+    "cookies",
+    "alarms"
   ],
 
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": ["http://localhost:8000/*"],
 
   "background": {
     "service_worker": "background.js",

@@ -130,6 +130,7 @@ export const signUp = async (req: Request, res: Response): Promise<void> => {
         const options = {
             httpOnly: true,
             secure: true,
+            SameSite:"None",
         }
 
         res.status(201)
@@ -314,7 +315,8 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 
         const options = {
             httpOnly: true,
-            secure: true
+            secure: true,
+            SameSite:"None",
         }
 
         res.status(200)
@@ -456,10 +458,16 @@ export const googleLogin = async (req: Request, res: Response) => {
         const { accessToken, refreshToken } =
             await generateAccessAndRefreshTokens(user._id as mongoose.Types.ObjectId);
 
+        const options = {
+            httpOnly: true,
+            secure: true,
+            SameSite:"None",
+        }
+
         res
             .status(200)
-            .cookie("accessToken", accessToken, { httpOnly: true })
-            .cookie("refreshToken", refreshToken, { httpOnly: true })
+            .cookie("accessToken", accessToken, options)
+            .cookie("refreshToken", refreshToken, options)
             .json({
                 success: true,
                 message: "Google login successful",

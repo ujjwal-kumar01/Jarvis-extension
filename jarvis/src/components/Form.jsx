@@ -19,6 +19,16 @@ function Form() {
     setResp((prev) => prev + "\n" + msg);
   };
 
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    chrome.runtime.sendMessage({ type: "CHECK_AUTH" }, (res) => {
+      setIsLoggedIn(!!res?.loggedIn);
+    });
+  }, []);
+
+
+
   const execute = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -38,6 +48,7 @@ function Form() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ task }),
+          credentials: "include"
         }
       );
 
@@ -93,6 +104,7 @@ function Form() {
       const execRes = await fetch("http://localhost:8000/task/executeTask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           task,
           category: detectedCategory,
@@ -206,7 +218,12 @@ function Form() {
 
         {/* Body */}
         <div className="p-4 space-y-4">
-          <form onSubmit={execute} className="space-y-3">
+          {!isLoggedIn ? (
+            <div className="text-center text-sm text-red-400">
+              Please login to continue.
+            </div>
+          ) : (
+            <form onSubmit={execute} className="space-y-3">
             <input
               type="text"
               placeholder="What should I do for you?"
@@ -218,15 +235,15 @@ function Form() {
             <button
               disabled={loading}
               className={`w-full rounded-xl py-2 text-sm font-medium transition-all
-                ${
-                  loading
-                    ? "bg-gray-600 cursor-not-allowed"
-                    : "bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90"
+                ${loading
+                  ? "bg-gray-600 cursor-not-allowed"
+                  : "bg-gradient-to-r from-cyan-500 to-blue-500 hover:opacity-90"
                 }`}
             >
               {loading ? "Processing..." : "Execute Task"}
             </button>
           </form>
+          )}
 
           {category && (
             <div className="text-xs text-cyan-300">
