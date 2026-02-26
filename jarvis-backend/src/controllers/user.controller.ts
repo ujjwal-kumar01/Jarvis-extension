@@ -528,7 +528,7 @@ const encrypt = (text: string): string => {
 };
 
 
-const decrypt = (encryptedText: string): string => {
+export const decrypt = (encryptedText: string): string => {
     const key = getEncryptionKey();
     const [ivHex, encrypted] = encryptedText.split(":");
 

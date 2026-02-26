@@ -3,27 +3,23 @@ import type { Request, Response } from "express";
 import { GoogleGenAI } from "@google/genai";
 import { ApiError } from "../utils/ApiError.js";
 import dotenv from "dotenv";
+import User from "../models/user.models.js";
+import {decrypt} from "./user.controller.js"
+import { error } from "console";
 
 dotenv.config();
 
 // ----------------------------------------------------
-// Initialize Gemini Client
-// ----------------------------------------------------
-if (!process.env.GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY is not set in environment variables.");
-}
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
-
-// ----------------------------------------------------
 // SAFE GENERATE WITH RETRY
 // ----------------------------------------------------
-async function safeGenerate(prompt: string, retries = 5, baseDelay = 1000) {
+async function safeGenerate(prompt: string, GEMINI_API_KEY:string, retries = 3, baseDelay = 1500) {
+  const ai = new GoogleGenAI({
+  apiKey: GEMINI_API_KEY,
+});
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.5-flash-lite",
         contents: prompt,
       });
 
@@ -77,6 +73,16 @@ export const identifyTask = async (req: Request, res: Response): Promise<void> =
     const { task } = req.body;
     if (!task || !task.trim()) throw new ApiError(400, "Task description is required");
 
+    const GEMINI_API_KEY= req.user.gemini.apiKeyEncrypted
+    if(!GEMINI_API_KEY){
+      res.status(400).json({
+      success: false,
+      message: "Please Provide Gemini API key",
+    });
+      return;
+    }
+    const NEW_GEMINI_API_KEY=decrypt(GEMINI_API_KEY)
+
     const prompt = `
 You are a task classification agent for a Chrome extension.
 Classify the user's natural language request into EXACTLY one of these categories:
@@ -102,7 +108,7 @@ Classify this task (only output JSON):
 Task: "${task}"
 `;
 
-    const response = await safeGenerate(prompt);
+    const response = await safeGenerate(prompt, NEW_GEMINI_API_KEY);
     const text = cleanText(response);
 
     let aiResult: { category: string; explanation: string } = { category: "notDoable", explanation: "Unable to determine." };
@@ -154,6 +160,18 @@ export const executeTask = async (req: Request, res: Response): Promise<void> =>
   try {
     const { task, category, userData } = req.body;
     if (!task || !category) throw new ApiError(400, "Task and category required");
+
+    
+    const GEMINI_API_KEY= req.user.gemini.apiKeyEncrypted
+    if(!GEMINI_API_KEY){
+      res.status(400).json({
+      success: false,
+      message: "Please Provide Gemini API key",
+      error:"Please Provide Gemini API Key"
+    });
+      return;
+    }
+    const NEW_GEMINI_API_KEY=decrypt(GEMINI_API_KEY)
 
     const context = userData ? JSON.stringify(userData).slice(0, 3000) : "No context provided.";
     let prompt = "";
@@ -291,8 +309,8 @@ OR
 
 B)
 {
-  "functionCode": "<DOM only JS>",
-  "output": "<what it does>"
+  "functionCode": "<DOM only JS to extract or interact with page not any other code>",
+  "output": "<what it does and all other code which dont do anything with the page should be in output as an explanation but not in functionCode>"
 }`;
         break;
 
@@ -330,10 +348,12 @@ Return JSON:
 }`;
     }
 
+    prompt+="ALWAYS FOCUS ON SAFETY AND AVOIDING HARM. NEVER RETURN ANY DANGEROUS CODE.ALSO PRIORTIZE THE TASK MORE THAN ANY RANDOM EXTRA INFORMATION IN THE USER DATA TO BETTER UNDERSTAND THE USER INTENT AND DELIVER THE BEST RESULT."
+
     // ------------------------------------------------------------------
     // CALL GEMINI SAFELY
     // ------------------------------------------------------------------
-    const response = await safeGenerate(prompt);
+    const response = await safeGenerate(prompt, NEW_GEMINI_API_KEY);
     const raw = cleanText(response);
 
     let parsed: any = {};

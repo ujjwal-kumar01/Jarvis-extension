@@ -3,7 +3,7 @@
   "name": "Jarvis AI Assistant",
   "version": "1.0",
   "description": "An AI-powered Chrome Assistant that can perform tasks on any webpage.",
-  
+
   "permissions": [
     "activeTab",
     "scripting",
@@ -16,7 +16,10 @@
     "alarms"
   ],
 
-  "host_permissions": ["http://localhost:8000/*"],
+  "host_permissions": [
+    "<all_urls>",
+    "http://localhost:8000/*"
+  ],
 
   "background": {
     "service_worker": "background.js",
